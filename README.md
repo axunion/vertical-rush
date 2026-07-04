@@ -1,28 +1,50 @@
-## Usage
+# vertical-rush
+
+A mobile-first vertical scrolling run game. Tap left/right to switch lanes, dodge
+obstacles, and reach the goal 500m ahead.
+
+- **Stack**: Vite / SolidJS / Kobalte / TypeScript / CSS Modules
+- **Testing & quality**: Vitest / Biome / lefthook
+- **Package manager**: pnpm
+
+## Setup
 
 ```bash
-$ npm install # or pnpm install or yarn install
+pnpm install   # also installs git hooks (lefthook)
+pnpm dev       # http://localhost:5173
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+## Scripts
 
-## Available Scripts
+| Command | Description |
+|---|---|
+| `pnpm dev` | Start the dev server |
+| `pnpm build` | Type check + production build (`dist/`) |
+| `pnpm preview` | Preview the production build |
+| `pnpm test` | Run tests (Vitest) |
+| `pnpm check` | Lint + format check (Biome) + type check (tsc) |
+| `pnpm fix` | Auto-fix with Biome |
 
-In the project directory, you can run:
+## Git hooks
 
-### `npm run dev`
+Managed by lefthook:
 
-Runs the app in the development mode.<br>
-Open [http://localhost:5173](http://localhost:5173) to view it in the browser.
+- **pre-commit**: checks and auto-fixes staged files with Biome
+- **pre-push**: runs `pnpm check` and `pnpm test` in parallel
 
-### `npm run build`
+## Structure
 
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
+```
+src/
+├── gameLogic.ts       # Pure game logic functions (no UI dependencies)
+├── gameLogic.test.ts  # Logic tests (TDD)
+├── App.tsx            # Canvas rendering, game loop, UI (tunables in GAME_CONFIG)
+└── App.module.css     # Overlay UI styles
+```
 
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+Logic and UI are loosely coupled. To change game rules (e.g. collision), write a
+failing test in `gameLogic.test.ts` first; for rendering or feel adjustments,
+start from `GAME_CONFIG` in `App.tsx`.
 
-## Deployment
-
-Learn more about deploying your application with the [documentations](https://vite.dev/guide/static-deploy.html)
+Image assets (`public/assets/player.png`, `obstacle.png`) are optional. When
+missing, the game falls back to shape-based Canvas rendering.

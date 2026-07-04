@@ -55,3 +55,41 @@ Format:
 - Bullets: include only for 2+ distinct changes.
 - Never commit secrets (`*.key`, `*.pem`, `credentials*`).
 - Never use `--no-verify` or `--amend`; always create a new commit.
+
+---
+
+# Project: vertical-rush
+
+Mobile-first vertical scrolling run game. Vite + SolidJS + Kobalte + TypeScript +
+CSS Modules + Vitest + Biome, managed with pnpm.
+
+## Commands
+
+- `pnpm dev` / `pnpm build` / `pnpm preview`
+- `pnpm test` — vitest run
+- `pnpm check` — biome check + `tsc -b` (root tsconfig is references-only; plain
+  `tsc --noEmit` checks nothing)
+- `pnpm fix` — biome check --write
+
+Git hooks (lefthook, auto-installed by `pnpm install`): pre-commit runs Biome on
+staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
+
+## Architecture
+
+- `src/gameLogic.ts` — pure functions and shared constants. No UI dependencies
+  (`window`, `document`, Canvas, SolidJS). Covered by `src/gameLogic.test.ts`;
+  change logic test-first.
+- `src/App.tsx` — Canvas rendering, game loop, input, sound (Web Audio), and
+  overlay UI. All tunables live in the `GAME_CONFIG` object at the top; no magic
+  numbers elsewhere. Collision checks must go through `checkCollision` — never
+  reimplement hit detection in the UI layer.
+- Per-frame values live in plain mutable objects (`sim`, `view`); Solid signals
+  are only for low-frequency UI state (phase, level, displayed distance).
+
+## Gotchas
+
+- Vitest runs with `environment: "node"` set in `vite.config.ts` — without it,
+  vite-plugin-solid injects jsdom (not installed) in test mode.
+- `tsconfig.app.json` has `erasableSyntaxOnly` (no enums/namespaces) and
+  `verbatimModuleSyntax` (type-only imports required).
+- Biome lints the whole repo except `*.svg` files (template SVGs trip a11y rules).
