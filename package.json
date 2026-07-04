@@ -1,0 +1,24 @@
+{
+  "name": "vertical-rush",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@kobalte/core": "^0.13.12",
+    "solid-js": "^1.9.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.2",
+    "@types/node": "^24.13.2",
+    "lefthook": "^2.1.9",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.9"
+  }
+}
