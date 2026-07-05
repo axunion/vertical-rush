@@ -46,5 +46,8 @@ Logic and UI are loosely coupled. To change game rules (e.g. collision), write a
 failing test in `gameLogic.test.ts` first; for rendering or feel adjustments,
 start from `GAME_CONFIG` in `App.tsx`.
 
+Design specifications (world, entity system, rendering pipeline, roadmap) live
+in [`spec/`](spec/README.md) — the source of truth for planned work.
+
 Image assets (`public/assets/player.png`, `obstacle.png`) are optional. When
 missing, the game falls back to shape-based Canvas rendering.

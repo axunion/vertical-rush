@@ -80,11 +80,24 @@ staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
   (`window`, `document`, Canvas, SolidJS). Covered by `src/gameLogic.test.ts`;
   change logic test-first.
 - `src/App.tsx` — Canvas rendering, game loop, input, sound (Web Audio), and
-  overlay UI. All tunables live in the `GAME_CONFIG` object at the top; no magic
-  numbers elsewhere. Collision checks must go through `checkCollision` — never
+  overlay UI. Collision checks must go through `checkCollision` — never
   reimplement hit detection in the UI layer.
+- Tunables live in the module that owns them: view/feel/particle values in
+  `GAME_CONFIG` (`src/App.tsx`), entity data in `src/entities.ts` (once it
+  exists), difficulty values in `src/gameLogic.ts`. No magic numbers at use
+  sites, ever.
 - Per-frame values live in plain mutable objects (`sim`, `view`); Solid signals
   are only for low-frequency UI state (phase, level, displayed distance).
+
+## Specifications
+
+`spec/` is the design source of truth (start at `spec/README.md`). Any change
+to gameplay rules, entity data, the rendering pipeline, or difficulty values
+must update the matching spec section — including its `Status:` line — in the
+same commit. When spec and code disagree and the spec section says
+`implemented`, the code wins: fix the spec first. New feature work follows the
+phases in `spec/07-roadmap.md`; do not implement work marked `planned` for a
+later phase.
 
 ## Gotchas
 
