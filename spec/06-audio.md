@@ -36,8 +36,8 @@ export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
 
 | SfxId | game event | recipe | status |
 |---|---|---|---|
-| `dash` | lane switch | current upward sweep, volume lowered to ~0.04 (it fires constantly) | implemented (tweak planned, P2) |
-| `levelUp` | zone change banner | current fanfare C5–E5–G5 triangle | implemented |
+| `dash` | lane switch | current downward sweep (square, 240→90 Hz), volume lowered to ~0.04 (it fires constantly) | implemented (tweak planned, P2) |
+| `levelUp` | zone change banner | current fanfare C5–E5–G5 square | implemented |
 | `clear` | reaching the castle gate | current arpeggio + added low bell (sine 523 Hz, ~1.2 s decay) | implemented (bell planned, P5) |
 | `gameOver` | crash | current sawtooth down-sweep + added white-noise burst (~0.2 s buffer noise) for the pratfall | implemented (noise planned, P5) |
 | `coin` | item collect | two-note ping E6→B6, square wave, ~0.09 s | planned (P4) |
