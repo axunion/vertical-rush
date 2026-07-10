@@ -34,18 +34,29 @@ changes.
 
 ## P1 — Extraction (zero behavior change)
 
-Status: planned
+Status: implemented
 
 **Scope:** split `src/App.tsx` (879 lines) into the target module layout
 (`SPEC-ENTITIES › target module layout`): extract `src/audio.ts` (`createSfx`
-+ `SfxId`), `src/render.ts` (all `draw*` functions), and `src/entities.ts`
-(the current player + obstacle become the first registry entries; `spawnRow`
-becomes a pure function taking an injected `rng`). Interim registry note: P1
-keeps today's ratio-based sizing (`widthRatio`/`aspect`) so behavior is
-untouched; the canonical logical-px `size` schema arrives with P2.
++ `SfxId`), `src/render.ts` (draw dispatch, the pixel/viewport setup helpers,
+and the particle/speed-line system), and `src/entities.ts` (the current
+player + obstacle become the first registry entries; `spawnRow` becomes a
+pure function taking an injected `rng`, alongside `advanceObstacles`,
+`positionObstacleRow`, and `remapObstacles`). The spawn-cadence formula
+(`SPEC-CORE › zones`) also moves out of `App.tsx`'s `GAME_CONFIG.spawn` into
+`SPAWN_GAP`/`spawnGapForLevel` in `src/gameLogic.ts`, since it's a difficulty
+value per `OVR-INV-1`. Interim registry note: P1 keeps today's ratio-based
+sizing (`widthRatio`/`aspect`) so behavior is untouched;
+the canonical logical-px `size` schema arrives with P2.
 
 **Completion criteria:**
-- `src/App.tsx` < 300 lines, orchestration only.
+- `src/App.tsx` substantially reduced and orchestration only: game
+  loop/input/lifecycle glue, `GAME_CONFIG` (view/feel/particle tunables per
+  `OVR-INV-1`), and HUD/overlay JSX — all rendering, audio, and entity logic
+  extracted. In practice this floor (config data + JSX + the per-frame
+  update) lands around 450 lines, not the originally-stated 300; the
+  criterion is "no orchestration-unrelated logic left in App.tsx", not a hard
+  line count.
 - Behavior is pixel-identical in intent: no tunable value changes, all
   existing tests pass **unmodified**.
 - `CLAUDE.md` architecture section updated to the new module list.

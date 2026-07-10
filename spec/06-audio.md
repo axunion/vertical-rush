@@ -15,7 +15,7 @@ BGM proves flat.
 
 ## AUD-01 — Unlock rule
 
-Status: implemented (src/App.tsx createSfx)
+Status: implemented (src/audio.ts createSfx)
 
 The `AudioContext` is created/resumed only from a user gesture (`sfx.unlock()`
 on pointer-down, key-down, and the start button). Every new audio feature must
@@ -24,10 +24,9 @@ component cleanup (`dispose`).
 
 ## AUD-02 — SFX catalog
 
-Status: partial — 4 voices implemented (src/App.tsx createSfx); rows marked planned extend the catalog
+Status: partial — 4 voices implemented (src/audio.ts createSfx); rows marked planned extend the catalog
 
-The catalog is keyed by `SfxId`. Canonical (target: `src/audio.ts`, after the
-P1 extraction):
+The catalog is keyed by `SfxId`. Canonical (src/audio.ts):
 
 ```ts
 export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";

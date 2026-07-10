@@ -4,7 +4,22 @@ import {
   calculateLevel,
   checkCollision,
   isGameCleared,
+  spawnGapForLevel,
 } from "./gameLogic";
+
+describe("spawnGapForLevel", () => {
+  it.each([
+    [1, 8],
+    [2, 6.8],
+    [3, 5.6],
+  ])("returns %f m gap at level %i", (level, expected) => {
+    expect(spawnGapForLevel(level)).toBeCloseTo(expected);
+  });
+
+  it("clamps to the minimum gap beyond level 3", () => {
+    expect(spawnGapForLevel(10)).toBe(5.5);
+  });
+});
 
 describe("calculateLevel", () => {
   it.each([

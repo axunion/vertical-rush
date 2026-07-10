@@ -1,7 +1,7 @@
 ---
 id: SPEC-ENTITIES
 title: Entity System (Registry, Spawning, Items)
-status: planned
+status: partial
 code: [src/entities.ts, src/gameLogic.ts, src/App.tsx]
 ---
 
@@ -16,7 +16,7 @@ descriptions (motif, fiction) for the same ids live in `SPEC-WORLD`.
 Status: partial — see the per-invariant markers
 
 - `ENT-INV-1` Every spawned row leaves at least one passable lane.
-  *(implemented via the safe-lane random walk in `src/App.tsx` `spawnRow`;
+  *(implemented via the safe-lane random walk in `src/entities.ts` `spawnRow`;
   preserved by construction in all future spawn logic)*
 - `ENT-INV-2` A moving obstacle never enters the current safe lane while
   within 1.5 player heights (vertically) of the player row. *(planned — binds
@@ -27,7 +27,9 @@ Status: partial — see the per-invariant markers
 
 ## Target module layout
 
-Status: planned (P1 creates the modules; later phases fill them)
+Status: implemented (P1) — modules created with the interim ratio-based
+registry below; the canonical logical-px `EntityDef.size` schema and later
+rows (`SPAWN_TABLE`, `src/sprites.ts`) arrive in later phases
 
 | Module | Responsibility | Purity |
 |---|---|---|
@@ -126,7 +128,7 @@ registry-driven 2-lane spawn replaces this rule in P4.
 
 Status: partial — see the two subsections
 
-### Implemented today (src/App.tsx spawnRow, updateGame)
+### Implemented today (src/entities.ts spawnRow/advanceObstacles, src/App.tsx updateGame)
 
 Status: implemented
 

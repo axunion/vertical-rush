@@ -55,12 +55,12 @@ detailed by the referenced spec.
 | ID | Invariant | Owner |
 |---|---|---|
 | `CORE-INV-1` | All collision decisions go through `checkCollision` in `src/gameLogic.ts`. Never reimplement hit detection elsewhere. *(implemented)* | `SPEC-CORE` |
-| `CORE-INV-2` | Pure modules (`src/gameLogic.ts`; later `src/entities.ts`, `src/sprites.ts`) never import UI dependencies (`window`, `document`, Canvas, SolidJS) and stay unit-testable in the node environment. *(implemented for gameLogic)* | `SPEC-CORE` |
+| `CORE-INV-2` | Pure modules (`src/gameLogic.ts`, `src/entities.ts`; later `src/sprites.ts`) never import UI dependencies (`window`, `document`, Canvas, SolidJS) and stay unit-testable in the node environment. *(implemented for gameLogic.ts and entities.ts)* | `SPEC-CORE` |
 | `CORE-INV-3` | Distance is the sole clear condition. Items and score never gate progress. *(implemented trivially — no items yet)* | `SPEC-CORE` |
 | `ENT-INV-1` | Every spawned row leaves at least one passable lane. *(implemented via the safe-lane random walk)* | `SPEC-ENTITIES` |
 | `ENT-INV-2` | Moving obstacles never enter the current safe lane while within 1.5 player heights of the player row. *(planned — binds when movers exist)* | `SPEC-ENTITIES` |
 | `RND-INV-1` | The game is fully playable and visually coherent with zero PNG assets present; asset load failure is silent and per-sheet. *(implemented — primitives are currently the only path)* | `SPEC-RENDER` |
-| `OVR-INV-1` | No magic numbers at use sites: every tunable lives in a named config/table in the module that owns it (view/feel in `GAME_CONFIG`, entity data in `entities.ts`, difficulty in `gameLogic.ts`). *(implemented for the current single-file layout)* | this spec |
+| `OVR-INV-1` | No magic numbers at use sites: every tunable lives in a named config/table in the module that owns it (view/feel in `GAME_CONFIG`, entity data in `entities.ts`, difficulty in `gameLogic.ts`). *(implemented — tunables now split across `GAME_CONFIG` in `src/App.tsx`, `ENTITY_DEFS` in `src/entities.ts`, and `SPAWN_GAP`/`ZONE_TABLE`-precursor tiers in `src/gameLogic.ts`)* | this spec |
 
 ## Environment constraints
 
@@ -80,4 +80,4 @@ Restated here because they shape every canonical code block in these specs:
   in the same phase (`SPEC-RENDER › RND-05`, `SPEC-ROADMAP` P2).
 - Missing `/assets/*.png` requests return 200 text/html (Vite SPA fallback),
   not 404 — asset loading must key off `Image` `onerror`/decode failure, never
-  HTTP status (implemented in `src/App.tsx` `loadImage`).
+  HTTP status (implemented in `src/render.ts` `loadImage`).

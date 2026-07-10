@@ -105,9 +105,10 @@ change. Adding a fourth zone later is a table edit plus new boundary tests.
 
 **Implemented spawn cadence today** (for reference until P5): rows spawn every
 `max(minGap 5.5, baseGap 8 − (level−1) × gapPerLevel 1.2)` meters → 8 / 6.8 /
-5.6 m at levels 1/2/3, after an initial 6 m delay (`GAME_CONFIG.spawn`,
-`src/App.tsx` `updateGame`). The P5 per-zone ramp above replaces this formula;
-until then the formula is the source of truth.
+5.6 m at levels 1/2/3, after an initial 6 m delay (`SPAWN_GAP` +
+`spawnGapForLevel`, `src/gameLogic.ts`; called from `src/App.tsx`
+`updateGame`). The P5 per-zone ramp above replaces this formula; until then
+the formula is the source of truth.
 
 ## Zone transitions
 

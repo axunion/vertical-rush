@@ -76,16 +76,26 @@ staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
 
 ## Architecture
 
-- `src/gameLogic.ts` — pure functions and shared constants. No UI dependencies
-  (`window`, `document`, Canvas, SolidJS). Covered by `src/gameLogic.test.ts`;
-  change logic test-first.
-- `src/App.tsx` — Canvas rendering, game loop, input, sound (Web Audio), and
-  overlay UI. Collision checks must go through `checkCollision` — never
-  reimplement hit detection in the UI layer.
+- `src/gameLogic.ts` — pure functions and shared constants (collision,
+  clear condition, level/difficulty tables). No UI dependencies (`window`,
+  `document`, Canvas, SolidJS). Covered by `src/gameLogic.test.ts`; change
+  logic test-first.
+- `src/entities.ts` — entity registry (`ENTITY_DEFS`), pure spawn-row
+  generation with an injected `rng`, and obstacle-array helpers
+  (`advanceObstacles`, `positionObstacleRow`, `remapObstacles`). No UI
+  dependencies; covered by `src/entities.test.ts`; change logic test-first.
+- `src/render.ts` — draw dispatch, the pixel/viewport setup helpers
+  (`buildViewport`, image loading), and the particle/speed-line system.
+  Canvas/DOM allowed, no SolidJS.
+- `src/audio.ts` — `createSfx` (Web Audio synth voices) and the `SfxId`
+  catalog.
+- `src/App.tsx` — orchestration only: game loop, input, phase signals,
+  `GAME_CONFIG` (view/feel/particle tunables), and HUD/overlay JSX. Collision
+  checks must go through `checkCollision` (via `entities.ts`
+  `advanceObstacles`) — never reimplement hit detection in the UI layer.
 - Tunables live in the module that owns them: view/feel/particle values in
-  `GAME_CONFIG` (`src/App.tsx`), entity data in `src/entities.ts` (once it
-  exists), difficulty values in `src/gameLogic.ts`. No magic numbers at use
-  sites, ever.
+  `GAME_CONFIG` (`src/App.tsx`), entity data in `src/entities.ts`, difficulty
+  values in `src/gameLogic.ts`. No magic numbers at use sites, ever.
 - Per-frame values live in plain mutable objects (`sim`, `view`); Solid signals
   are only for low-frequency UI state (phase, level, displayed distance).
 

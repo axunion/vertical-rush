@@ -16,14 +16,14 @@ Status: implemented — see the marker on the invariant
 
 - `RND-INV-1` The game is **fully playable and visually coherent with zero PNG
   files present**. Asset load failure is per-sheet and silent (the existing
-  `loadImage` resolve-to-`null` pattern in `src/App.tsx`); tests and CI never
+  `loadImage` resolve-to-`null` pattern in `src/render.ts`); tests and CI never
   require binary assets; a fallback drawing renders the **same logical
   footprint (Box)** as its sprite so collision feel is identical either way.
   *(implemented today in the degenerate sense — primitives are the only path)*
 
 ## Current pipeline (for reference)
 
-Status: implemented (src/App.tsx resize, render)
+Status: implemented (src/render.ts renderFrame/buildViewport, src/App.tsx resize)
 
 Canvas backing store = CSS size × `devicePixelRatio`; all drawing uses smooth
 vector primitives (gradients, `roundRect`, shadow-blur glow pre-rendered once

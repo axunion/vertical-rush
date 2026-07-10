@@ -20,6 +20,22 @@ export const TARGET_DISTANCE = 500;
  */
 export const COLLISION_MARGIN_RATE = 0.2;
 
+/** Distance (m) before the first row spawns, and the per-level row-gap ramp. */
+export const SPAWN_GAP = {
+  initialDelay: 6,
+  baseGap: 8,
+  gapPerLevel: 1.2,
+  minGap: 5.5,
+} as const;
+
+/** Meters between spawned rows at the given level: 8 / 6.8 / 5.6 at levels 1/2/3. */
+export function spawnGapForLevel(level: number): number {
+  return Math.max(
+    SPAWN_GAP.minGap,
+    SPAWN_GAP.baseGap - (level - 1) * SPAWN_GAP.gapPerLevel,
+  );
+}
+
 export function calculateLevel(distance: number): LevelInfo {
   const d = Math.max(0, distance);
   if (d <= 100) {
