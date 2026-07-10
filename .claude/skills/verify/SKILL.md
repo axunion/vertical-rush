@@ -22,8 +22,27 @@ Key techniques that work:
 - **Deterministic scenarios** via `page.evaluateOnNewDocument("Math.random = () => X")`:
   - `X = 0.4` → safe lane stays center → an idle player **clears** at 500m (~65s).
   - `X = 0.9` → obstacle lands on the player's lane → **crash** within ~5s.
-- **Player lane position**: read the game canvas with `getImageData` and scan the
-  row at `cssH * 0.78 + playerHeight/2` for the body color `#ff7a29` (tolerance ±40).
+- **Player lane position**: locate the player by scanning canvas pixels for the
+  rust-red key color `#D95763` (tolerance ±40, `SPEC-RENDER › RND-05`). Since
+  P2, the game draws to a fixed 180×320 offscreen buffer that's integer-scaled
+  and letterboxed onto the display canvas (`RND-02`) — the canvas element can
+  have real top/bottom letterbox bars, so the scan row must be derived from
+  the canvas's own backing-store size (`canvas.width`/`canvas.height` already
+  **are** the device-pixel size the app sized the canvas to — no need to
+  re-derive it from `getBoundingClientRect()` × `devicePixelRatio`):
+
+  ```js
+  const k = Math.max(1, Math.floor(Math.min(canvas.width / 180, canvas.height / 320)));
+  const dy = Math.floor((canvas.height - 320 * k) / 2);
+  // 320*0.78 = player's fixed logical top (playerYRatio); +16 = half its 32px height.
+  const row = dy + Math.round((320 * 0.78 + 16) * k);
+  ```
+
+  Then `getImageData(0, row, canvas.width, 1)` and scan for `#D95763`
+  (tolerance ±40 per channel). At the mandated 390×844 viewport (dpr 1) this
+  works out to roughly canvas.width=390, canvas.height=693, k=2, dy≈26,
+  row≈557 — sanity-check against the actual numbers if the scan comes up
+  empty.
 - **Overlay detection**: match `document.body.innerText` case-insensitively —
   titles are CSS `text-transform: uppercase`, so innerText is "GAME OVER", not "Game Over".
 - Taps: `page.mouse.click(60, 500)` = left lane step, `(330, 500)` = right.

@@ -1,29 +1,57 @@
+import type { SfxId } from "./audio";
 import { type Box, checkCollision } from "./gameLogic";
 
-export type Obstacle = Box & { lane: number };
+/** Logical-px size of Poco (RND-01), including the cake box. Not a registry entry: the player has no category. */
+export const PLAYER_SIZE = { w: 24, h: 32 };
 
-/**
- * Interim ratio-based sizing (P1). Replaced by the canonical logical-px
- * `EntityDef.size` schema in P2 (SPEC-ENTITIES › ENT-01).
- */
+export type EntityCategory = "obstacle" | "item";
+
+export type CollisionEffect =
+  | { kind: "crash" }
+  | { kind: "collect"; score: number; sfx: SfxId };
+
+export type BehaviorDef = { kind: "static" };
+
+export type FallbackShape = "runner" | "crate" | "cart";
+
 export interface EntityDef {
   id: string;
-  widthRatio: number; // relative to lane width
-  aspect: number; // height / width
+  category: EntityCategory;
+  size: { w: number; h: number };
+  lanes: 1 | 2;
+  behavior: BehaviorDef;
+  sprite: { sheet: string; animation: string } | null;
+  fallback: FallbackShape;
+  onCollision: CollisionEffect;
 }
 
-export const ENTITY_DEFS: Record<"player" | "obstacle", EntityDef> = {
-  player: { id: "player", widthRatio: 0.5, aspect: 1.2 },
-  obstacle: { id: "obstacle", widthRatio: 0.74, aspect: 0.62 },
+export interface EntityInstance extends Box {
+  defId: string;
+  lane: number;
+}
+
+export const ENTITY_DEFS: Record<string, EntityDef> = {
+  "market-crate": {
+    id: "market-crate",
+    category: "obstacle",
+    size: { w: 38, h: 24 },
+    lanes: 1,
+    behavior: { kind: "static" },
+    sprite: null,
+    fallback: "crate",
+    onCollision: { kind: "crash" },
+  },
+  "hay-cart": {
+    id: "hay-cart",
+    category: "obstacle",
+    size: { w: 80, h: 32 },
+    lanes: 2,
+    behavior: { kind: "static" },
+    sprite: null,
+    fallback: "cart",
+    onCollision: { kind: "crash" },
+  },
 };
-
-export function obstacleSize(laneWidth: number): {
-  width: number;
-  height: number;
-} {
-  const width = laneWidth * ENTITY_DEFS.obstacle.widthRatio;
-  return { width, height: width * ENTITY_DEFS.obstacle.aspect };
-}
 
 export interface SpawnResult {
   safeLane: number;
@@ -56,40 +84,44 @@ export function spawnRow(
   return { safeLane: nextSafeLane, blockedLanes };
 }
 
-/** Builds positioned obstacle instances for a row's blocked lanes. */
-export function positionObstacleRow(
-  lanes: readonly number[],
-  laneWidth: number,
-  laneCenterX: (lane: number) => number,
-): Obstacle[] {
-  const { width, height } = obstacleSize(laneWidth);
-  return lanes.map((lane) => ({
-    lane,
-    x: laneCenterX(lane) - width / 2,
-    y: -height,
-    width,
-    height,
-  }));
-}
-
 /**
- * Remaps existing obstacles to new view geometry in place (window resize /
- * orientation change) so drawing and checkCollision stay aligned.
+ * Builds positioned obstacle instances for a row's blocked lanes (ENT-02 P2
+ * interim rule): two adjacent blocked lanes render as one `hay-cart`
+ * centered between them; otherwise each blocked lane gets its own
+ * `market-crate`. This is the interim stand-in for the registry-driven
+ * SPAWN_TABLE that arrives in P4.
  */
-export function remapObstacles(
-  obstacles: Obstacle[],
-  laneWidth: number,
+export function positionObstacleRow(
+  blockedLanes: readonly number[],
   laneCenterX: (lane: number) => number,
-  prevViewHeight: number,
-  nextViewHeight: number,
-): void {
-  const { width, height } = obstacleSize(laneWidth);
-  for (const obs of obstacles) {
-    obs.x = laneCenterX(obs.lane) - width / 2;
-    obs.y = (obs.y / prevViewHeight) * nextViewHeight;
-    obs.width = width;
-    obs.height = height;
+): EntityInstance[] {
+  const cart = ENTITY_DEFS["hay-cart"];
+  if (
+    blockedLanes.length === cart.lanes &&
+    Math.abs(blockedLanes[0] - blockedLanes[1]) === 1
+  ) {
+    const centerX =
+      (laneCenterX(blockedLanes[0]) + laneCenterX(blockedLanes[1])) / 2;
+    return [
+      {
+        defId: "hay-cart",
+        lane: Math.min(blockedLanes[0], blockedLanes[1]),
+        x: centerX - cart.size.w / 2,
+        y: -cart.size.h,
+        width: cart.size.w,
+        height: cart.size.h,
+      },
+    ];
   }
+  const def = ENTITY_DEFS["market-crate"];
+  return blockedLanes.map((lane) => ({
+    defId: "market-crate",
+    lane,
+    x: laneCenterX(lane) - def.size.w / 2,
+    y: -def.size.h,
+    width: def.size.w,
+    height: def.size.h,
+  }));
 }
 
 /**
@@ -98,7 +130,7 @@ export function remapObstacles(
  * `checkCollision`, per CORE-INV-1 — no second hit-detection path).
  */
 export function advanceObstacles(
-  obstacles: Obstacle[],
+  obstacles: EntityInstance[],
   scroll: number,
   viewHeight: number,
   player: Box,

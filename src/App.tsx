@@ -5,9 +5,9 @@ import { createSfx } from "./audio";
 import {
   advanceObstacles,
   ENTITY_DEFS,
-  type Obstacle,
+  type EntityInstance,
+  PLAYER_SIZE,
   positionObstacleRow,
-  remapObstacles,
   spawnRow,
 } from "./entities";
 import {
@@ -20,14 +20,19 @@ import {
 } from "./gameLogic";
 import {
   advanceSpeedLines,
-  buildViewport,
+  blitFrame,
+  computeDisplayFit,
+  createOffscreenCanvas,
+  createSpeedLine,
+  type DisplayFit,
   emitDust,
   emitSparks,
-  type GlowSprite,
-  loadImages,
+  type OffscreenSurface,
   type Particle,
+  paintLetterbox,
   renderFrame,
   type SpeedLine,
+  sizeDisplayCanvas,
   updateParticles,
   type View,
 } from "./render";
@@ -35,65 +40,54 @@ import {
 const GAME_CONFIG = {
   targetDistance: TARGET_DISTANCE,
   laneCount: 3,
-  assets: {
-    player: "/assets/player.png",
-    obstacle: "/assets/obstacle.png",
-  },
+  /** Fixed logical-pixel grid (RND-01): sim/drawing coordinates never depend on window size. */
+  logical: { w: 180, h: 320, roadPad: 12 },
   /** Fraction of the view height scrolled per second at speed 1. */
   speedRatio: 0.11,
-  /** Playfield width / height. */
-  viewAspect: 9 / 16,
-  roadPaddingRatio: 0.07,
   playerYRatio: 0.78,
-  playerGlowBlur: 18,
   laneEaseRate: 10,
   spawn: { doubleChance: 0.45 },
   particles: {
     dustMax: 70,
     dustPerSecond: 60,
     dust: {
-      driftX: 50,
-      fallSpeed: [90, 250],
+      driftX: 25,
+      fallSpeed: [45, 125],
       life: [0.35, 0.65],
-      size: [2, 5],
+      size: [1, 2.5],
     },
     spark: {
       count: 30,
-      speed: [120, 500],
-      lift: 60,
+      speed: [60, 250],
+      lift: 30,
       life: [0.5, 0.9],
-      size: [1.5, 4],
-      gravity: 700,
+      size: [1, 2],
+      gravity: 350,
     },
   },
   speedLines: {
     count: 12,
-    length: [30, 120],
+    length: [15, 60],
     speedFactor: 1.6,
     idleSpeed: 0.5,
   },
   idle: { scrollRatio: 0.06, animRate: 0.8 },
-  shake: { duration: 0.45, magnitude: 14 },
+  shake: { duration: 0.45, magnitude: 7 },
   bannerDuration: 1.2,
   font: '"Avenir Next", Futura, "Trebuchet MS", sans-serif',
   colors: {
-    roadTop: "#0a0c1e",
-    roadBottom: "#181b36",
-    laneLine: "rgba(45, 226, 255, 0.35)",
-    curb: "#ff5d3a",
-    curbAlt: "#e8e4d8",
-    player: "#ff7a29",
-    playerTrim: "#ffd166",
-    playerFace: "#ffe9c9",
-    obstacle: "#ffb020",
-    obstacleStripe: "#221a38",
-    dust: ["#ffd166", "#ff9f43", "#7defff"],
-    spark: "#ffe066",
-    goal: "#2de2ff",
-    speedLine: "rgba(140, 235, 255, 0.22)",
-    checker: ["#f4f7ff", "#10132b"],
-    highlight: "rgba(255, 255, 255, 0.25)",
-    shadow: "rgba(0, 0, 0, 0.35)",
+    ink: "#33272E",
+    duskPurple: "#5B4A68",
+    cobbleMid: "#8D7B84",
+    cobbleLight: "#B5A6A8",
+    parchment: "#F4E3C1",
+    warmWhite: "#FFF7E6",
+    rustRed: "#D95763",
+    terracotta: "#C65B41",
+    gold: "#F2B63D",
+    woodBrown: "#8A5A3B",
+    leafGreen: "#6DA34D",
+    duskTeal: "#3E6B73",
   },
 } as const;
 
@@ -108,17 +102,26 @@ export default function App() {
   let canvasEl!: HTMLCanvasElement;
   let ctx!: CanvasRenderingContext2D;
   let rafId = 0;
-  let roadGradient: CanvasGradient | null = null;
-  let glowSprite: GlowSprite | null = null;
+  let offscreen!: OffscreenSurface;
+  let displayFit!: DisplayFit;
 
   const sfx = createSfx();
 
-  const images: Record<"player" | "obstacle", HTMLImageElement | null> = {
-    player: null,
-    obstacle: null,
+  const view: View = {
+    w: GAME_CONFIG.logical.w,
+    h: GAME_CONFIG.logical.h,
+    roadPad: GAME_CONFIG.logical.roadPad,
+    laneWidth:
+      (GAME_CONFIG.logical.w - GAME_CONFIG.logical.roadPad * 2) /
+      GAME_CONFIG.laneCount,
   };
 
-  const view: View = { w: 360, h: 640, roadPad: 24, laneWidth: 104 };
+  // Static across the whole session; built once instead of per-frame.
+  const dustColors = [
+    GAME_CONFIG.colors.gold,
+    GAME_CONFIG.colors.warmWhite,
+    GAME_CONFIG.colors.terracotta,
+  ] as const;
 
   // Per-frame mutable simulation state. Kept out of signals on purpose:
   // writing signals at 60Hz would thrash Solid's reactive graph for no benefit.
@@ -127,7 +130,7 @@ export default function App() {
     playerLane: 1,
     playerX: 0,
     animTime: 0,
-    obstacles: [] as Obstacle[],
+    obstacles: [] as EntityInstance[],
     dust: [] as Particle[],
     sparks: [] as Particle[],
     speedLines: [] as SpeedLine[],
@@ -145,33 +148,24 @@ export default function App() {
 
   const pxPerUnit = () => view.h * GAME_CONFIG.speedRatio;
 
-  const playerBox = (): Box => {
-    const width = view.laneWidth * ENTITY_DEFS.player.widthRatio;
-    const height = width * ENTITY_DEFS.player.aspect;
-    return {
-      x: sim.playerX - width / 2,
-      y: view.h * GAME_CONFIG.playerYRatio,
-      width,
-      height,
-    };
-  };
+  const playerBox = (): Box => ({
+    x: sim.playerX - PLAYER_SIZE.w / 2,
+    y: view.h * GAME_CONFIG.playerYRatio,
+    width: PLAYER_SIZE.w,
+    height: PLAYER_SIZE.h,
+  });
 
   const resize = () => {
-    const prevH = view.h;
-    const viewport = buildViewport(
-      canvasEl,
-      ctx,
+    const dpr = window.devicePixelRatio || 1;
+    displayFit = computeDisplayFit(
       rootEl.clientWidth,
       rootEl.clientHeight,
-      GAME_CONFIG,
-      ENTITY_DEFS.player,
+      view.w,
+      view.h,
+      dpr,
     );
-    Object.assign(view, viewport.view);
-    roadGradient = viewport.roadGradient;
-    glowSprite = viewport.glowSprite;
-    sim.speedLines = viewport.speedLines;
-    remapObstacles(sim.obstacles, view.laneWidth, laneCenterX, prevH, view.h);
-    sim.playerX = laneCenterX(sim.playerLane);
+    sizeDisplayCanvas(canvasEl, ctx, displayFit);
+    paintLetterbox(ctx, displayFit, GAME_CONFIG.colors.ink);
   };
 
   const resetSim = () => {
@@ -238,7 +232,7 @@ export default function App() {
     );
     sim.safeLane = result.safeLane;
     sim.obstacles.push(
-      ...positionObstacleRow(result.blockedLanes, view.laneWidth, laneCenterX),
+      ...positionObstacleRow(result.blockedLanes, laneCenterX),
     );
   };
 
@@ -250,7 +244,7 @@ export default function App() {
       sim.sparks,
       player,
       GAME_CONFIG.particles.spark,
-      GAME_CONFIG.colors.spark,
+      GAME_CONFIG.colors.gold,
     );
   };
 
@@ -304,7 +298,7 @@ export default function App() {
         GAME_CONFIG.particles.dustMax,
         player,
         GAME_CONFIG.particles.dust,
-        GAME_CONFIG.colors.dust,
+        dustColors,
       );
     }
   };
@@ -333,16 +327,15 @@ export default function App() {
   };
 
   const render = () => {
-    renderFrame(ctx, {
+    renderFrame(offscreen.ctx, {
       view,
-      roadGradient,
       sim,
-      images,
-      glowSprite,
       player: playerBox(),
       level: level(),
       config: GAME_CONFIG,
+      defs: ENTITY_DEFS,
     });
+    blitFrame(ctx, offscreen.canvas, displayFit);
   };
 
   onMount(() => {
@@ -352,14 +345,23 @@ export default function App() {
       return;
     }
     ctx = context;
+    const surface = createOffscreenCanvas(view.w, view.h);
+    if (!surface) {
+      console.error("Offscreen canvas unavailable; the game cannot start.");
+      return;
+    }
+    offscreen = surface;
+    sim.speedLines = Array.from({ length: GAME_CONFIG.speedLines.count }, () =>
+      createSpeedLine(
+        view,
+        Math.random() * view.h,
+        GAME_CONFIG.speedLines.length,
+      ),
+    );
     resize();
     resetSim();
     window.addEventListener("resize", resize);
     window.addEventListener("keydown", handleKeyDown);
-    void loadImages(GAME_CONFIG.assets).then((loaded) => {
-      images.player = loaded.player;
-      images.obstacle = loaded.obstacle;
-    });
     let last = performance.now();
     const frame = (ts: number) => {
       const dt = Math.min((ts - last) / 1000, 0.05);

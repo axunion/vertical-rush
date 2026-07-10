@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceObstacles,
-  type Obstacle,
+  ENTITY_DEFS,
+  type EntityInstance,
+  PLAYER_SIZE,
   positionObstacleRow,
-  remapObstacles,
   spawnRow,
 } from "./entities";
 
@@ -75,28 +76,28 @@ describe("advanceObstacles", () => {
   const player = { x: 40, y: 200, width: 40, height: 40 };
 
   it("scrolls obstacles downward and reports no collision when clear", () => {
-    const obstacles: Obstacle[] = [
-      { lane: 0, x: 0, y: 0, width: 40, height: 40 },
+    const obstacles: EntityInstance[] = [
+      { defId: "market-crate", lane: 0, x: 0, y: 0, width: 40, height: 40 },
     ];
-    const crashed = advanceObstacles(obstacles, 10, 640, player);
+    const crashed = advanceObstacles(obstacles, 10, 320, player);
     expect(crashed).toBe(false);
     expect(obstacles[0].y).toBe(10);
   });
 
   it("drops obstacles that scrolled past the bottom of the view", () => {
-    const obstacles: Obstacle[] = [
-      { lane: 0, x: 0, y: 630, width: 40, height: 40 },
+    const obstacles: EntityInstance[] = [
+      { defId: "market-crate", lane: 0, x: 0, y: 310, width: 40, height: 40 },
     ];
-    const crashed = advanceObstacles(obstacles, 20, 640, player);
+    const crashed = advanceObstacles(obstacles, 20, 320, player);
     expect(crashed).toBe(false);
     expect(obstacles).toHaveLength(0);
   });
 
   it("reports a collision when an obstacle overlaps the player", () => {
-    const obstacles: Obstacle[] = [
-      { lane: 0, x: 40, y: 190, width: 40, height: 40 },
+    const obstacles: EntityInstance[] = [
+      { defId: "market-crate", lane: 0, x: 40, y: 190, width: 40, height: 40 },
     ];
-    const crashed = advanceObstacles(obstacles, 0, 640, player);
+    const crashed = advanceObstacles(obstacles, 0, 320, player);
     expect(crashed).toBe(true);
     expect(obstacles).toHaveLength(1);
   });
@@ -105,41 +106,56 @@ describe("advanceObstacles", () => {
 describe("positionObstacleRow", () => {
   const laneCenterX = (lane: number) => 30 + lane * 100;
 
-  it("positions one obstacle per blocked lane, centered and above the view", () => {
-    const [obs] = positionObstacleRow([2], 100, laneCenterX);
-    const width = 100 * 0.74;
-    const height = width * 0.62;
+  it("places one market-crate per blocked lane when a single lane is blocked", () => {
+    const [obs] = positionObstacleRow([2], laneCenterX);
+    const { size } = ENTITY_DEFS["market-crate"];
     expect(obs).toEqual({
+      defId: "market-crate",
       lane: 2,
-      x: laneCenterX(2) - width / 2,
-      y: -height,
-      width,
-      height,
+      x: laneCenterX(2) - size.w / 2,
+      y: -size.h,
+      width: size.w,
+      height: size.h,
     });
   });
 
-  it("returns one entry per lane, in input order", () => {
-    expect(
-      positionObstacleRow([0, 2], 100, laneCenterX).map((o) => o.lane),
-    ).toEqual([0, 2]);
+  it("places one hay-cart centered across two adjacent blocked lanes", () => {
+    const result = positionObstacleRow([0, 1], laneCenterX);
+    const { size } = ENTITY_DEFS["hay-cart"];
+    const centerX = (laneCenterX(0) + laneCenterX(1)) / 2;
+    expect(result).toEqual([
+      {
+        defId: "hay-cart",
+        lane: 0,
+        x: centerX - size.w / 2,
+        y: -size.h,
+        width: size.w,
+        height: size.h,
+      },
+    ]);
+  });
+
+  it("places two market-crates when the blocked lanes are not adjacent", () => {
+    const result = positionObstacleRow([0, 2], laneCenterX);
+    expect(result.map((o) => o.defId)).toEqual([
+      "market-crate",
+      "market-crate",
+    ]);
+    expect(result.map((o) => o.lane)).toEqual([0, 2]);
   });
 });
 
-describe("remapObstacles", () => {
-  it("recenters x on the new lane width and rescales y proportionally", () => {
-    const laneCenterX = (lane: number) => 30 + lane * 100;
-    const obstacles: Obstacle[] = [
-      { lane: 1, x: 999, y: 320, width: 10, height: 10 },
-    ];
-    remapObstacles(obstacles, 100, laneCenterX, 640, 320);
-    const width = 100 * 0.74;
-    const height = width * 0.62;
-    expect(obstacles[0]).toEqual({
-      lane: 1,
-      x: laneCenterX(1) - width / 2,
-      y: 160,
-      width,
-      height,
-    });
+describe("ENTITY_DEFS", () => {
+  it("matches the ENT-02 source-of-truth footprint for market-crate and hay-cart", () => {
+    expect(ENTITY_DEFS["market-crate"].size).toEqual({ w: 38, h: 24 });
+    expect(ENTITY_DEFS["market-crate"].lanes).toBe(1);
+    expect(ENTITY_DEFS["hay-cart"].size).toEqual({ w: 80, h: 32 });
+    expect(ENTITY_DEFS["hay-cart"].lanes).toBe(2);
+  });
+});
+
+describe("PLAYER_SIZE", () => {
+  it("matches the RND-01 logical player sprite size", () => {
+    expect(PLAYER_SIZE).toEqual({ w: 24, h: 32 });
   });
 });

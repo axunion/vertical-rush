@@ -1,7 +1,7 @@
 ---
 id: SPEC-RENDER
 title: Rendering (Pixel Pipeline, Sprites, Fallback)
-status: planned
+status: partial
 code: [src/render.ts, src/sprites.ts, src/App.tsx]
 ---
 
@@ -15,32 +15,34 @@ sprite sheets, while staying fully playable with zero image assets.
 Status: implemented — see the marker on the invariant
 
 - `RND-INV-1` The game is **fully playable and visually coherent with zero PNG
-  files present**. Asset load failure is per-sheet and silent (the existing
-  `loadImage` resolve-to-`null` pattern in `src/render.ts`); tests and CI never
-  require binary assets; a fallback drawing renders the **same logical
-  footprint (Box)** as its sprite so collision feel is identical either way.
-  *(implemented today in the degenerate sense — primitives are the only path)*
+  files present**. Asset load failure must be per-sheet and silent (an
+  `Image` `onerror`/`onload` resolving to `null` on failure, never thrown);
+  tests and CI never require binary assets; a fallback drawing renders the
+  **same logical footprint (Box)** as its sprite so collision feel is
+  identical either way. *(implemented today in the degenerate sense — no
+  sprite loader exists yet, so fallback primitives are the only path; P3's
+  `src/sprites.ts` per-sheet loader implements the resolve-to-null pattern)*
 
 ## Current pipeline (for reference)
 
-Status: implemented (src/render.ts renderFrame/buildViewport, src/App.tsx resize)
+Status: superseded by RND-01/RND-02 (P2) — kept for historical context only
 
-Canvas backing store = CSS size × `devicePixelRatio`; all drawing uses smooth
-vector primitives (gradients, `roundRect`, shadow-blur glow pre-rendered once
-per resize, additive particles). Entity geometry is computed from `view`
-(`roadPad`, `laneWidth`) at window size. Everything in this section is
-replaced by RND-01/RND-02 in P2.
+The pre-P2 pipeline: canvas backing store = CSS size × `devicePixelRatio`;
+all drawing used smooth vector primitives (gradients, `roundRect`,
+shadow-blur glow pre-rendered once per resize, additive particles). Entity
+geometry was computed from `view` (`roadPad`, `laneWidth`) at window size,
+recomputed on every resize. None of this describes the current code.
 
 ## RND-01 — Logical resolution: 180×320
 
-Status: planned (P2)
+Status: implemented (src/entities.ts PLAYER_SIZE, src/App.tsx GAME_CONFIG.logical/view)
 
 **Source of truth** for the pixel grid:
 
 | value | px | derivation |
 |---|---|---|
-| logical canvas | 180 × 320 | exactly 9:16, matches `GAME_CONFIG.viewAspect` |
-| road padding | 12 per side | replaces `roadPaddingRatio 0.07` (180 × 0.07 ≈ 12.6 → 12) |
+| logical canvas | 180 × 320 | exactly 9:16, fixed by `GAME_CONFIG.logical` (no longer window-derived) |
+| road padding | 12 per side | fixed by `GAME_CONFIG.logical.roadPad` (was `roadPaddingRatio 0.07`, 180 × 0.07 ≈ 12.6 → 12) |
 | playfield | 156 | 180 − 2×12 |
 | lane width | 52 | 156 / 3 |
 | background tile | 16 × 16 | cobbles, curbs, props (`SPEC-WORLD › WLD-03`) |
@@ -54,7 +56,7 @@ removes today's resize-time geometry recomputation. `pxPerUnit` becomes
 
 ## RND-02 — Scaling contract
 
-Status: planned (P2)
+Status: implemented (src/render.ts computeDisplayFit/sizeDisplayCanvas/blitFrame)
 
 1. Every frame renders to an **offscreen canvas fixed at 180×320**.
 2. The display canvas keeps backing store = CSS size × DPR (as today). Blit
@@ -118,7 +120,7 @@ row 3 `crash`(3), row 4 `victory`(2).
 
 ## RND-05 — Player key color (e2e harness coupling)
 
-Status: planned (P2) — the constraint it replaces is implemented
+Status: implemented (src/App.tsx GAME_CONFIG.colors.rustRed, .claude/skills/verify/SKILL.md)
 
 The verify skill (`.claude/skills/verify/SKILL.md`) locates the player by
 scanning a canvas pixel row for the player body color — today `#ff7a29` with
@@ -134,7 +136,7 @@ named contract:
 
 ## RND-06 — Draw dispatcher and background painters
 
-Status: planned (P2 dispatcher with fallback shapes; P3 sprite path)
+Status: partial — implemented (src/render.ts drawEntity, P2 dispatcher with fallback shapes); sprite path planned (P3)
 
 - One entry point per entity: `drawEntity(ctx, instance, def, sheets, timeSec)`.
   If `def.sprite` is set and its sheet image loaded → draw the current
@@ -147,12 +149,12 @@ Status: planned (P2 dispatcher with fallback shapes; P3 sprite path)
 
 ## RND-07 — Fallback shapes
 
-Status: planned (P2)
+Status: implemented (src/entities.ts FallbackShape, src/render.ts drawFallback) — the `FallbackShape` union currently has 3 members (`runner`/`crate`/`cart`); `coin` is a one-line addition when P4 adds the item
 
-Canonical (target: `src/render.ts` or `src/entities.ts` for the type):
+Canonical (target: `src/entities.ts`):
 
 ```ts
-export type FallbackShape = "runner" | "crate" | "cart" | "coin";
+export type FallbackShape = "runner" | "crate" | "cart";
 ```
 
 A small closed set of parameterized pixel-style primitive drawers (chunky
@@ -161,7 +163,9 @@ glow). Each takes the instance Box and draws inside it exactly. New entities
 reuse an existing shape unless they genuinely need a new silhouette; adding a
 shape is a code change and should stay rare. Mapping per entity:
 `SPEC-ENTITIES › ENT-02` (`runner` = poco, `crate` = crates/barrels/static
-props, `cart` = wide 2-lane objects, `coin` = round items).
+props, `cart` = wide 2-lane objects). P4 adds a `"coin"` member (round items)
+when the `coin` item entity lands — not before, per `ENT-05`'s extension
+contract.
 
 ## Asset layout
 
@@ -175,8 +179,17 @@ public/assets/sheets/town.png       # background tiles: cobbles, curbs, gate, pr
 
 - Manifests (`SPRITE_SHEETS`) live in `src/sprites.ts` and are bundled; only
   PNGs live under `public/`.
-- Loading: `loadImage`-style per-sheet promise resolving to `null` on error;
-  remember Vite serves 200 text/html for missing `/assets/*` (SPA fallback),
-  so failure detection must come from the `Image` element, never HTTP status.
+- Loading: a per-sheet promise resolving to `null` on error (`Image`
+  `onload`/`onerror`, the same shape as the old `loadImage` helper this
+  section's loader replaces); remember Vite serves 200 text/html for missing
+  `/assets/*` (SPA fallback), so failure detection must come from the `Image`
+  element, never HTTP status.
 - The legacy `GAME_CONFIG.assets` two-key object (`player.png`,
-  `obstacle.png`) is retired when the manifest lands (P3).
+  `obstacle.png`) and its `loadImage`/`loadImages` helpers were removed in
+  P2, ahead of this section's own scope: the new `drawEntity`/`drawFallback`
+  dispatcher (`RND-06`) has no slot for the old bespoke
+  `drawObstacles`/`drawPlayer` pair, so both the two-key config and its
+  loader became orphaned as soon as that pair was deleted. Neither PNG ever
+  existed under `public/`, so behavior is unaffected. The real sprite-sheet
+  manifest below (`SPRITE_SHEETS`, actual PNGs, a fresh per-sheet loader) is
+  still P3 scope.

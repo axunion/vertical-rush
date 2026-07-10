@@ -9,7 +9,8 @@ code: [src/App.tsx, src/gameLogic.ts]
 
 ## Pitch
 
-Status: partial — mechanics implemented, theme planned (P2)
+Status: partial — mechanics implemented, theme implemented (P2); cast/sprites
+planned (P3+)
 
 vertical-rush is a mobile-first, one-session (60–90 s) vertical lane runner:
 tap the left or right half of the screen to switch between 3 lanes, dodge
@@ -41,9 +42,9 @@ Status: implemented (terms in current code) / planned where marked
 | sim | Plain mutable per-frame state object in `src/App.tsx` (not Solid signals) |
 | view | Plain object holding derived canvas geometry (`w`, `h`, `roadPad`, `laneWidth`) |
 | zone *(planned)* | Named themed segment of the run (old-town / market-street / castle-road); 1:1 with today's levels — see `SPEC-CORE` |
-| entity *(planned)* | Any spawnable object (obstacle or item) defined by an `EntityDef` registry row |
-| logical pixel *(planned)* | Coordinate unit of the 180×320 offscreen canvas — see `SPEC-RENDER › RND-01` |
-| fallback drawing *(planned; exists today as the only path)* | Canvas-primitive rendering used when a sprite sheet PNG is absent |
+| entity | Any spawnable object (obstacle or item) defined by an `EntityDef` registry row |
+| logical pixel | Coordinate unit of the 180×320 offscreen canvas — see `SPEC-RENDER › RND-01` |
+| fallback drawing | Canvas-primitive rendering used when a sprite sheet PNG is absent (the only path today; sprite sheets arrive in P3) |
 
 ## Global invariants
 

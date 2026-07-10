@@ -1,7 +1,7 @@
 ---
 id: SPEC-WORLD
 title: World, Cast & Art Style
-status: planned
+status: partial
 code: [src/entities.ts, src/sprites.ts, src/render.ts]
 ---
 
@@ -13,7 +13,8 @@ same entity ids.
 
 ## World concept: "Poco's Special Delivery"
 
-Status: planned (P2 for palette/theme, P3+ for cast)
+Status: partial — palette/theme implemented (P2); cast beyond Poco and P2's
+two obstacles, plus real sprite sheets, planned (P3+)
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
@@ -40,7 +41,8 @@ for free: run forward, don't touch anything, the goal is a gate.
 
 ## Protagonist: Poco (`poco`)
 
-Status: planned (P2 fallback look, P3 sprite sheet)
+Status: partial — fallback look implemented (P2, src/render.ts drawFallback
+`"runner"`); sprite sheet + animation states planned (P3)
 
 - **Silhouette:** chibi, 2 heads tall, carrying a square cake box overhead —
   the box extends the silhouette upward, reads instantly at mobile size, and
@@ -63,7 +65,8 @@ Status: planned (P2 fallback look, P3 sprite sheet)
 
 ## Obstacle cast
 
-Status: planned (phases per row)
+Status: partial — `market-crate`/`hay-cart` implemented (P2); the rest is
+planned per the phase column
 
 Design-level roster. `WLD-01`: every obstacle row here has a matching registry
 row in `SPEC-ENTITIES › ENT-02` with the same id; neither table may gain an id
@@ -97,7 +100,7 @@ normative in `SPEC-ENTITIES › ENT-03`.
 
 ## Base palette
 
-Status: planned (P2)
+Status: implemented (src/App.tsx GAME_CONFIG.colors)
 
 `WLD-02` — **source of truth** for the Karamell palette. 12 colors, warm and
 mobile-readable: entities stay warm/saturated, the road stays neutral so they
@@ -124,7 +127,8 @@ Particle colors move to `gold` / `warm-white` / `terracotta` (dust) and
 
 ## Art style rules
 
-Status: planned (P2–P3)
+Status: partial — `WLD-03`/`WLD-04` implemented (P2); `WLD-05` (castle gate
+sprite) planned, unscheduled
 
 - `WLD-03` Pixel art on a 16 px background tile grid at the 180×320 logical
   resolution (`SPEC-RENDER › RND-01`); sprites use the sizes in

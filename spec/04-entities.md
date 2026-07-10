@@ -27,9 +27,9 @@ Status: partial — see the per-invariant markers
 
 ## Target module layout
 
-Status: implemented (P1) — modules created with the interim ratio-based
-registry below; the canonical logical-px `EntityDef.size` schema and later
-rows (`SPAWN_TABLE`, `src/sprites.ts`) arrive in later phases
+Status: partial — modules and the canonical logical-px `EntityDef.size`
+schema are implemented (P1 extraction, P2 canonical schema); `SPAWN_TABLE`
+and `src/sprites.ts` arrive in later phases (P4/P3 respectively)
 
 | Module | Responsibility | Purity |
 |---|---|---|
@@ -45,7 +45,7 @@ producing deterministic runs — the shell passes `Math.random` in production.
 
 ## Canonical types
 
-Status: planned (P2+ schema; P1 may keep interim ratio-based sizing, see `SPEC-ROADMAP › P1`)
+Status: implemented (src/entities.ts)
 
 `ENT-01` — Canonical (target: `src/entities.ts`):
 
@@ -91,7 +91,8 @@ calls, particles) stays in the shell — the registry never imports UI code
 
 ## Entity registry
 
-Status: planned (phases per row)
+Status: partial — `market-crate`/`hay-cart` implemented (P2, src/entities.ts
+ENTITY_DEFS); the rest of the roster is planned per the phase column
 
 `ENT-02` — **source of truth** for mechanical values. Ids pair 1:1 with
 `SPEC-WORLD` (`WLD-01`). Sizes are logical px on the 180×320 grid
@@ -128,7 +129,7 @@ registry-driven 2-lane spawn replaces this rule in P4.
 
 Status: partial — see the two subsections
 
-### Implemented today (src/entities.ts spawnRow/advanceObstacles, src/App.tsx updateGame)
+### Implemented today (src/entities.ts spawnRow/positionObstacleRow/advanceObstacles, src/App.tsx updateGame)
 
 Status: implemented
 
@@ -138,10 +139,14 @@ Status: implemented
 - Rows spawn on a distance schedule: see `SPEC-CORE › zones` for the gap
   formula (8 / 6.8 / 5.6 m by level, initial delay 6 m).
 - Off-screen obstacles (below the view) are removed each frame.
+- Blocked lanes are filled per the `ENT-02` P2 interim rule: two adjacent
+  blocked lanes render as one `hay-cart`; otherwise each blocked lane gets
+  its own `market-crate` (`positionObstacleRow`).
 
-This algorithm is proven and is **preserved** through the redesign; what
-changes is that the blocked lanes are filled by weighted registry picks
-instead of one hardcoded obstacle.
+This algorithm is proven and is **preserved** through the redesign; the
+registry-driven pick above is a stepping stone — the full weighted
+`SPAWN_TABLE` (multiple obstacle/item weights per zone) still arrives in
+P4–P5.
 
 ### Planned spawn table (P4–P5)
 

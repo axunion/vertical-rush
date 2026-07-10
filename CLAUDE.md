@@ -80,13 +80,16 @@ staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
   clear condition, level/difficulty tables). No UI dependencies (`window`,
   `document`, Canvas, SolidJS). Covered by `src/gameLogic.test.ts`; change
   logic test-first.
-- `src/entities.ts` — entity registry (`ENTITY_DEFS`), pure spawn-row
-  generation with an injected `rng`, and obstacle-array helpers
-  (`advanceObstacles`, `positionObstacleRow`, `remapObstacles`). No UI
+- `src/entities.ts` — canonical entity types (`EntityDef`, `EntityInstance`,
+  `FallbackShape`), the entity registry (`ENTITY_DEFS`), the fixed
+  `PLAYER_SIZE`, pure spawn-row generation with an injected `rng`, and
+  obstacle-array helpers (`advanceObstacles`, `positionObstacleRow`). No UI
   dependencies; covered by `src/entities.test.ts`; change logic test-first.
-- `src/render.ts` — draw dispatch, the pixel/viewport setup helpers
-  (`buildViewport`, image loading), and the particle/speed-line system.
-  Canvas/DOM allowed, no SolidJS.
+- `src/render.ts` — the fixed 180×320 offscreen/display canvas pipeline
+  (`computeDisplayFit`, `sizeDisplayCanvas`, `createOffscreenCanvas`,
+  `blitFrame`), the draw dispatcher (`drawEntity`/`drawFallback`), image
+  loading, and the particle/speed-line system. Canvas/DOM allowed, no
+  SolidJS.
 - `src/audio.ts` — `createSfx` (Web Audio synth voices) and the `SfxId`
   catalog.
 - `src/App.tsx` — orchestration only: game loop, input, phase signals,

@@ -1,5 +1,7 @@
+import type { EntityDef, EntityInstance, FallbackShape } from "./entities";
 import type { Box } from "./gameLogic";
 
+/** Fixed logical-pixel geometry (RND-01) — computed once, never touched by resize. */
 export interface View {
   w: number;
   h: number;
@@ -24,136 +26,166 @@ export interface SpeedLine {
   length: number;
 }
 
-export interface GlowSprite {
-  canvas: HTMLCanvasElement;
-  w: number;
-  h: number;
-  pad: number;
-}
-
+/** The 12-color Karamell palette (WLD-02 source of truth). */
 export interface RenderColors {
-  roadTop: string;
-  roadBottom: string;
-  laneLine: string;
-  curb: string;
-  curbAlt: string;
-  player: string;
-  playerTrim: string;
-  playerFace: string;
-  obstacle: string;
-  obstacleStripe: string;
-  spark: string;
-  goal: string;
-  speedLine: string;
-  checker: readonly string[];
-  highlight: string;
-  shadow: string;
+  ink: string;
+  duskPurple: string;
+  cobbleMid: string;
+  cobbleLight: string;
+  parchment: string;
+  warmWhite: string;
+  rustRed: string;
+  terracotta: string;
+  gold: string;
+  woodBrown: string;
+  leafGreen: string;
+  duskTeal: string;
 }
 
-export const loadImage = (src: string) =>
-  new Promise<HTMLImageElement | null>((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
+/**
+ * Shared Map-cache idiom: return the cached value for `key`, else `compute`
+ * it and store it. A `null` result (a canvas/pattern build failure) is never
+ * cached, so a transient failure gets retried next call instead of sticking.
+ */
+function cachedBy<V>(cache: Map<string, V>, key: string, compute: () => V): V {
+  const cached = cache.get(key);
+  if (cached) {
+    return cached;
+  }
+  const value = compute();
+  cache.set(key, value);
+  return value;
+}
+
+const alphaCache = new Map<string, string>();
+
+/** Memoized: called every frame with a fixed set of palette hex/alpha pairs. */
+function withAlpha(hex: string, alpha: number): string {
+  return cachedBy(alphaCache, `${hex}|${alpha}`, () => {
+    const r = Number.parseInt(hex.slice(1, 3), 16);
+    const g = Number.parseInt(hex.slice(3, 5), 16);
+    const b = Number.parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   });
-
-/** Loads one image per named source; a per-image load failure resolves to null (RND-INV-1). */
-export async function loadImages<K extends string>(
-  sources: Record<K, string>,
-): Promise<Record<K, HTMLImageElement | null>> {
-  const keys = Object.keys(sources) as K[];
-  const loaded = await Promise.all(keys.map((key) => loadImage(sources[key])));
-  return Object.fromEntries(keys.map((key, i) => [key, loaded[i]])) as Record<
-    K,
-    HTMLImageElement | null
-  >;
 }
 
-export function createRoadGradient(
+/** The 1px ink outline shared by every chunky pixel shape (RND-07). */
+function strokeInset(
   c: CanvasRenderingContext2D,
-  height: number,
-  top: string,
-  bottom: string,
-): CanvasGradient {
-  const gradient = c.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, top);
-  gradient.addColorStop(1, bottom);
-  return gradient;
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+): void {
+  c.strokeStyle = color;
+  c.lineWidth = 1;
+  c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
-/** Fits the 9:16-style playfield inside the available box, rounded to whole px. */
-export function computeView(
+export interface DisplayFit {
+  cssW: number;
+  cssH: number;
+  backingW: number;
+  backingH: number;
+  k: number;
+  dx: number;
+  dy: number;
+}
+
+/** Fits the 9:16-style playfield inside the available box, then picks the largest integer scale (RND-02). */
+export function computeDisplayFit(
   maxW: number,
   maxH: number,
-  aspect: number,
-  roadPaddingRatio: number,
-  laneCount: number,
-): View {
-  let w = maxW;
-  let h = maxW / aspect;
-  if (h > maxH) {
-    h = maxH;
-    w = maxH * aspect;
+  logicalW: number,
+  logicalH: number,
+  dpr: number,
+): DisplayFit {
+  const aspect = logicalW / logicalH;
+  let cssW = maxW;
+  let cssH = maxW / aspect;
+  if (cssH > maxH) {
+    cssH = maxH;
+    cssW = maxH * aspect;
   }
-  const roundedW = Math.round(w);
-  const roundedH = Math.round(h);
-  const roadPad = roundedW * roadPaddingRatio;
-  return {
-    w: roundedW,
-    h: roundedH,
-    roadPad,
-    laneWidth: (roundedW - roadPad * 2) / laneCount,
-  };
+  cssW = Math.round(cssW);
+  cssH = Math.round(cssH);
+  const backingW = Math.round(cssW * dpr);
+  const backingH = Math.round(cssH * dpr);
+  const k = Math.max(
+    1,
+    Math.floor(Math.min(backingW / logicalW, backingH / logicalH)),
+  );
+  const dx = Math.floor((backingW - logicalW * k) / 2);
+  const dy = Math.floor((backingH - logicalH * k) / 2);
+  return { cssW, cssH, backingW, backingH, k, dx, dy };
 }
 
-/** Backing-store size = CSS size x DPR; resizing a canvas resets its transform. */
-export function applyCanvasSize(
+/** Backing-store size = CSS size x DPR; resizing a canvas resets its context state (RND-03). */
+export function sizeDisplayCanvas(
   canvasEl: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
-  view: View,
+  fit: DisplayFit,
 ): void {
-  const dpr = window.devicePixelRatio || 1;
-  canvasEl.style.width = `${view.w}px`;
-  canvasEl.style.height = `${view.h}px`;
-  canvasEl.width = Math.round(view.w * dpr);
-  canvasEl.height = Math.round(view.h * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  canvasEl.style.width = `${fit.cssW}px`;
+  canvasEl.style.height = `${fit.cssH}px`;
+  canvasEl.width = fit.backingW;
+  canvasEl.height = fit.backingH;
+  ctx.imageSmoothingEnabled = false;
 }
 
-// Canvas shadowBlur is too slow to pay per frame on mobile, so the glowing
-// player body is pre-rendered once per resize and stamped with drawImage.
-export function renderGlowSprite(
-  width: number,
-  height: number,
-  blur: number,
-  color: string,
-): GlowSprite | null {
-  const pad = blur * 1.6;
-  const w = width + pad * 2;
-  const h = height + pad * 2;
-  const dpr = window.devicePixelRatio || 1;
+export interface OffscreenSurface {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+}
+
+/** Creates the fixed 180x320 logical-pixel drawing surface (RND-01); never resized. */
+export function createOffscreenCanvas(
+  w: number,
+  h: number,
+): OffscreenSurface | null {
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(w * dpr);
-  canvas.height = Math.ceil(h * dpr);
-  const c = canvas.getContext("2d");
-  if (!c) {
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
     return null;
   }
-  c.scale(dpr, dpr);
-  c.shadowColor = color;
-  c.shadowBlur = blur;
-  c.fillStyle = color;
-  c.beginPath();
-  c.roundRect(
-    pad + width * 0.14,
-    pad + height * 0.2,
-    width * 0.72,
-    height * 0.58,
-    width * 0.3,
+  ctx.imageSmoothingEnabled = false;
+  return { canvas, ctx };
+}
+
+/**
+ * Paints the letterbox border color across the whole display canvas. Only
+ * `dx`/`dy`'s margins stay visible once `blitFrame` draws over the rest, so
+ * this only needs to run when `fit` changes (on resize), not every frame.
+ */
+export function paintLetterbox(
+  displayCtx: CanvasRenderingContext2D,
+  fit: DisplayFit,
+  borderColor: string,
+): void {
+  displayCtx.fillStyle = borderColor;
+  displayCtx.fillRect(0, 0, fit.backingW, fit.backingH);
+}
+
+/** Blits the offscreen buffer onto the display canvas, integer-scaled and centered (RND-02). */
+export function blitFrame(
+  displayCtx: CanvasRenderingContext2D,
+  offscreen: HTMLCanvasElement,
+  fit: DisplayFit,
+): void {
+  displayCtx.drawImage(
+    offscreen,
+    0,
+    0,
+    offscreen.width,
+    offscreen.height,
+    fit.dx,
+    fit.dy,
+    offscreen.width * fit.k,
+    offscreen.height * fit.k,
   );
-  c.fill();
-  return { canvas, w, h, pad };
 }
 
 const randRange = ([min, max]: readonly [number, number]) =>
@@ -189,58 +221,6 @@ export function advanceSpeedLines(
       );
     }
   }
-}
-
-export interface ViewportConfig {
-  viewAspect: number;
-  roadPaddingRatio: number;
-  laneCount: number;
-  playerGlowBlur: number;
-  colors: Pick<RenderColors, "player" | "roadTop" | "roadBottom">;
-  speedLines: { count: number; length: readonly [number, number] };
-}
-
-export interface Viewport {
-  view: View;
-  roadGradient: CanvasGradient;
-  glowSprite: GlowSprite | null;
-  speedLines: SpeedLine[];
-}
-
-/** Rebuilds everything geometry-derived after a resize: view, road gradient, glow sprite, speed lines. */
-export function buildViewport(
-  canvasEl: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  maxW: number,
-  maxH: number,
-  config: ViewportConfig,
-  player: { widthRatio: number; aspect: number },
-): Viewport {
-  const view = computeView(
-    maxW,
-    maxH,
-    config.viewAspect,
-    config.roadPaddingRatio,
-    config.laneCount,
-  );
-  applyCanvasSize(canvasEl, ctx, view);
-  const roadGradient = createRoadGradient(
-    ctx,
-    view.h,
-    config.colors.roadTop,
-    config.colors.roadBottom,
-  );
-  const playerWidth = view.laneWidth * player.widthRatio;
-  const glowSprite = renderGlowSprite(
-    playerWidth,
-    playerWidth * player.aspect,
-    config.playerGlowBlur,
-    config.colors.player,
-  );
-  const speedLines = Array.from({ length: config.speedLines.count }, () =>
-    createSpeedLine(view, Math.random() * view.h, config.speedLines.length),
-  );
-  return { view, roadGradient, glowSprite, speedLines };
 }
 
 export function updateParticles(
@@ -296,6 +276,7 @@ export interface SparkConfig {
   lift: number;
   life: readonly [number, number];
   size: readonly [number, number];
+  gravity: number;
 }
 
 export function emitSparks(
@@ -323,18 +304,81 @@ export function emitSparks(
   }
 }
 
+const ROAD_TILE = 16;
+const roadPatternCache = new Map<string, CanvasPattern | null>();
+// Reused across frames so drawRoad's per-frame scroll doesn't allocate a DOMMatrix every call.
+const roadPatternTransform = new DOMMatrix();
+
+/**
+ * Builds (and caches, same Map-cache idiom as `withAlpha`) a repeating
+ * 16x32 tile of the brick-offset mortar grid, so the road paints with one
+ * pattern fill per frame instead of redrawing every grid line. Two tile
+ * rows are needed to capture the alternating brick offset.
+ */
+function getRoadPattern(
+  c: CanvasRenderingContext2D,
+  colors: RenderColors,
+): CanvasPattern | null {
+  const key = `${colors.cobbleMid}|${colors.ink}`;
+  return cachedBy(roadPatternCache, key, () => {
+    const surface = createOffscreenCanvas(ROAD_TILE, ROAD_TILE * 2);
+    if (!surface) {
+      return null;
+    }
+    const tc = surface.ctx;
+    tc.fillStyle = colors.cobbleMid;
+    tc.fillRect(0, 0, ROAD_TILE, ROAD_TILE * 2);
+    tc.strokeStyle = withAlpha(colors.ink, 0.25);
+    tc.lineWidth = 1;
+    for (let row = 0; row < 2; row++) {
+      const y = row * ROAD_TILE;
+      tc.beginPath();
+      tc.moveTo(0, y + 0.5);
+      tc.lineTo(ROAD_TILE, y + 0.5);
+      tc.stroke();
+      const xShift = row % 2 === 0 ? 0 : ROAD_TILE / 2;
+      for (let x = xShift; x <= ROAD_TILE; x += ROAD_TILE) {
+        tc.beginPath();
+        tc.moveTo(x + 0.5, y);
+        tc.lineTo(x + 0.5, y + ROAD_TILE);
+        tc.stroke();
+      }
+    }
+    return c.createPattern(surface.canvas, "repeat");
+  });
+}
+
+/** Flat road fill plus a scrolling 16px mortar grid (WLD-03 tile grid; no gradients). */
+export function drawRoad(
+  c: CanvasRenderingContext2D,
+  view: View,
+  bgOffset: number,
+  colors: RenderColors,
+): void {
+  const pattern = getRoadPattern(c, colors);
+  if (pattern) {
+    const period = ROAD_TILE * 2;
+    const offset = ((bgOffset % period) + period) % period;
+    roadPatternTransform.f = offset;
+    pattern.setTransform(roadPatternTransform);
+    c.fillStyle = pattern;
+  } else {
+    c.fillStyle = colors.cobbleMid;
+  }
+  c.fillRect(view.roadPad, 0, view.w - view.roadPad * 2, view.h);
+}
+
 export function drawCurbs(
   c: CanvasRenderingContext2D,
   view: View,
   bgOffset: number,
-  curbColor: string,
-  curbAltColor: string,
+  colors: RenderColors,
 ): void {
-  const stripe = 34;
-  const curbW = Math.max(6, view.roadPad * 0.4);
+  const stripe = 16;
+  const curbW = Math.max(6, view.roadPad * 0.6);
   const offset = bgOffset % (stripe * 2);
   for (let pass = 0; pass < 2; pass++) {
-    c.fillStyle = pass === 0 ? curbColor : curbAltColor;
+    c.fillStyle = pass === 0 ? colors.cobbleLight : colors.leafGreen;
     const start = offset - stripe * 2 + pass * stripe;
     for (let y = start; y < view.h + stripe; y += stripe * 2) {
       c.fillRect(view.roadPad - curbW, y, curbW, stripe);
@@ -343,22 +387,24 @@ export function drawCurbs(
   }
 }
 
+const LANE_DASH = [6, 8];
+
 export function drawLaneLines(
   c: CanvasRenderingContext2D,
   view: View,
   laneCount: number,
   bgOffset: number,
-  laneLineColor: string,
+  colors: RenderColors,
 ): void {
-  c.strokeStyle = laneLineColor;
-  c.lineWidth = 3;
-  c.setLineDash([16, 30]);
+  c.strokeStyle = withAlpha(colors.cobbleLight, 0.6);
+  c.lineWidth = 1;
+  c.setLineDash(LANE_DASH);
   c.lineDashOffset = -bgOffset;
   for (let i = 1; i < laneCount; i++) {
     const x = view.roadPad + view.laneWidth * i;
     c.beginPath();
-    c.moveTo(x, -10);
-    c.lineTo(x, view.h + 10);
+    c.moveTo(x, -4);
+    c.lineTo(x, view.h + 4);
     c.stroke();
   }
   c.setLineDash([]);
@@ -367,16 +413,49 @@ export function drawLaneLines(
 export function drawSpeedLines(
   c: CanvasRenderingContext2D,
   lines: readonly SpeedLine[],
-  color: string,
+  colors: RenderColors,
 ): void {
-  c.strokeStyle = color;
-  c.lineWidth = 2;
+  c.strokeStyle = withAlpha(colors.ink, 0.2);
+  c.lineWidth = 1;
+  c.beginPath();
   for (const line of lines) {
-    c.beginPath();
     c.moveTo(line.x, line.y - line.length);
     c.lineTo(line.x, line.y);
-    c.stroke();
   }
+  c.stroke();
+}
+
+const GOAL_CHECKER_CELL = 8;
+const goalCheckerPatternCache = new Map<string, CanvasPattern | null>();
+// Reused across frames so drawGoalLine's per-frame positioning doesn't allocate a DOMMatrix every call.
+const goalCheckerTransform = new DOMMatrix();
+
+/** Builds (and caches, same idiom as `getRoadPattern`/`withAlpha`) a 2x2-cell checker tile. */
+function getGoalCheckerPattern(
+  c: CanvasRenderingContext2D,
+  colors: RenderColors,
+): CanvasPattern | null {
+  const key = `${colors.warmWhite}|${colors.ink}`;
+  return cachedBy(goalCheckerPatternCache, key, () => {
+    const size = GOAL_CHECKER_CELL * 2;
+    const surface = createOffscreenCanvas(size, size);
+    if (!surface) {
+      return null;
+    }
+    const tc = surface.ctx;
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 2; col++) {
+        tc.fillStyle = (row + col) % 2 === 0 ? colors.warmWhite : colors.ink;
+        tc.fillRect(
+          col * GOAL_CHECKER_CELL,
+          row * GOAL_CHECKER_CELL,
+          GOAL_CHECKER_CELL,
+          GOAL_CHECKER_CELL,
+        );
+      }
+    }
+    return c.createPattern(surface.canvas, "repeat");
+  });
 }
 
 export function drawGoalLine(
@@ -384,145 +463,146 @@ export function drawGoalLine(
   view: View,
   remainingPx: number,
   playerYRatio: number,
-  checkerA: string,
-  checkerB: string,
+  colors: RenderColors,
 ): void {
   const y = view.h * playerYRatio - remainingPx;
-  if (y < -40 || y > view.h + 40) {
+  if (y < -16 || y > view.h + 16) {
     return;
   }
-  const cell = 14;
-  for (let row = 0; row < 2; row++) {
-    for (let x = view.roadPad; x < view.w - view.roadPad; x += cell) {
-      c.fillStyle =
-        (Math.floor(x / cell) + row) % 2 === 0 ? checkerA : checkerB;
-      c.fillRect(x, y + row * cell, cell, cell);
-    }
-  }
-}
-
-export function drawObstacles(
-  c: CanvasRenderingContext2D,
-  obstacles: readonly Box[],
-  img: HTMLImageElement | null,
-  colors: Pick<RenderColors, "obstacle" | "obstacleStripe" | "highlight">,
-): void {
-  for (const obs of obstacles) {
-    if (img) {
-      c.drawImage(img, obs.x, obs.y, obs.width, obs.height);
-      continue;
-    }
-    c.fillStyle = colors.obstacle;
-    c.beginPath();
-    c.roundRect(obs.x, obs.y, obs.width, obs.height, 8);
-    c.fill();
-    c.save();
-    c.clip();
-    c.strokeStyle = colors.obstacleStripe;
-    c.lineWidth = 8;
-    for (let sx = -obs.height; sx < obs.width; sx += 22) {
-      c.beginPath();
-      c.moveTo(obs.x + sx, obs.y + obs.height + 4);
-      c.lineTo(obs.x + sx + obs.height + 8, obs.y - 4);
-      c.stroke();
-    }
-    c.restore();
-    c.fillStyle = colors.highlight;
-    c.fillRect(obs.x + 5, obs.y + 2, obs.width - 10, 3);
-  }
-}
-
-export function drawPlayer(
-  c: CanvasRenderingContext2D,
-  p: Box,
-  animTime: number,
-  img: HTMLImageElement | null,
-  glow: GlowSprite | null,
-  colors: Pick<
-    RenderColors,
-    "shadow" | "playerTrim" | "player" | "playerFace" | "obstacleStripe"
-  >,
-): void {
-  const cx = p.x + p.width / 2;
-  c.fillStyle = colors.shadow;
-  c.beginPath();
-  c.ellipse(
-    cx,
-    p.y + p.height + 4,
-    p.width * 0.45,
-    p.width * 0.14,
-    0,
-    0,
-    Math.PI * 2,
-  );
-  c.fill();
-  if (img) {
-    c.drawImage(img, p.x, p.y + Math.sin(animTime * 16) * 2, p.width, p.height);
-    return;
-  }
-  const legPhase = Math.sin(animTime * 16) * p.height * 0.09;
-  c.fillStyle = colors.playerTrim;
-  c.beginPath();
-  c.ellipse(
-    cx - p.width * 0.22,
-    p.y + p.height * 0.88 + legPhase,
-    p.width * 0.13,
-    p.height * 0.09,
-    0,
-    0,
-    Math.PI * 2,
-  );
-  c.ellipse(
-    cx + p.width * 0.22,
-    p.y + p.height * 0.88 - legPhase,
-    p.width * 0.13,
-    p.height * 0.09,
-    0,
-    0,
-    Math.PI * 2,
-  );
-  c.fill();
-  if (glow) {
-    c.drawImage(glow.canvas, p.x - glow.pad, p.y - glow.pad, glow.w, glow.h);
+  const pattern = getGoalCheckerPattern(c, colors);
+  if (pattern) {
+    goalCheckerTransform.e = view.roadPad;
+    goalCheckerTransform.f = y;
+    pattern.setTransform(goalCheckerTransform);
+    c.fillStyle = pattern;
   } else {
-    c.fillStyle = colors.player;
-    c.beginPath();
-    c.roundRect(
-      p.x + p.width * 0.14,
-      p.y + p.height * 0.2,
-      p.width * 0.72,
-      p.height * 0.58,
-      p.width * 0.3,
-    );
-    c.fill();
+    c.fillStyle = colors.warmWhite;
   }
-  c.fillStyle = colors.playerFace;
-  c.beginPath();
-  c.arc(cx, p.y + p.height * 0.16, p.width * 0.2, 0, Math.PI * 2);
-  c.fill();
-  c.fillStyle = colors.obstacleStripe;
-  c.fillRect(
-    cx - p.width * 0.16,
-    p.y + p.height * 0.1,
-    p.width * 0.32,
-    p.height * 0.06,
-  );
+  c.fillRect(view.roadPad, y, view.w - view.roadPad * 2, GOAL_CHECKER_CELL * 2);
+}
+
+/** Chunky pixel-shape drawers (RND-07): flat fills, 1px ink outline, no gradients or glow. */
+export function drawFallback(
+  c: CanvasRenderingContext2D,
+  shape: FallbackShape,
+  box: Box,
+  colors: RenderColors,
+  animTime = 0,
+): void {
+  const x = Math.round(box.x);
+  const y = Math.round(box.y);
+  const w = Math.round(box.width);
+  const h = Math.round(box.height);
+  if (shape === "crate") {
+    drawCrateShape(c, x, y, w, h, colors);
+  } else if (shape === "cart") {
+    drawCartShape(c, x, y, w, h, colors);
+  } else {
+    drawRunnerShape(c, x, y, w, h, colors, animTime);
+  }
+}
+
+function drawCrateShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(x, y, w, h);
+  strokeInset(c, x, y, w, h, colors.ink);
+  c.fillStyle = withAlpha(colors.ink, 0.5);
+  c.fillRect(x + 2, y + h * 0.33, w - 4, 1);
+  c.fillRect(x + 2, y + h * 0.66, w - 4, 1);
+  c.fillStyle = colors.gold;
+  c.fillRect(x + w * 0.22, y + h * 0.4, 3, 3);
+  c.fillRect(x + w * 0.66, y + h * 0.4, 3, 3);
+}
+
+function drawCartShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(x, y, w, h * 0.75);
+  strokeInset(c, x, y, w, h * 0.75, colors.ink);
+  c.fillStyle = colors.warmWhite;
+  c.fillRect(x + w * 0.08, y + h * 0.08, w * 0.84, h * 0.2);
+  const wheel = h * 0.28;
+  c.fillStyle = colors.ink;
+  c.fillRect(x + w * 0.12, y + h * 0.68, wheel, wheel);
+  c.fillRect(x + w * 0.88 - wheel, y + h * 0.68, wheel, wheel);
+}
+
+function drawRunnerShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+  animTime: number,
+): void {
+  const legPhase = Math.round(Math.sin(animTime * 16) * h * 0.05);
+  c.fillStyle = withAlpha(colors.ink, 0.25);
+  c.fillRect(x + w * 0.15, y + h * 0.94, w * 0.7, 2);
+
+  const footW = w * 0.22;
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(x + w * 0.16, y + h * 0.86 + legPhase, footW, h * 0.12);
+  c.fillRect(x + w * 0.62, y + h * 0.86 - legPhase, footW, h * 0.12);
+
+  const torsoY = y + h * 0.42;
+  const torsoH = h * 0.5;
+  c.fillStyle = colors.parchment;
+  c.fillRect(x + w * 0.14, torsoY, w * 0.72, torsoH);
+  strokeInset(c, x + w * 0.14, torsoY, w * 0.72, torsoH, colors.ink);
+
+  c.fillStyle = colors.rustRed;
+  c.fillRect(x + w * 0.1, torsoY, w * 0.8, h * 0.12);
+
+  const headY = y + h * 0.22;
+  const headH = h * 0.2;
+  c.fillStyle = colors.parchment;
+  c.fillRect(x + w * 0.24, headY, w * 0.52, headH);
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(x + w * 0.22, headY - 2, w * 0.56, 4);
+  strokeInset(c, x + w * 0.24, headY, w * 0.52, headH, colors.ink);
+
+  c.fillStyle = colors.warmWhite;
+  c.fillRect(x + w * 0.2, y, w * 0.6, h * 0.2);
+  strokeInset(c, x + w * 0.2, y, w * 0.6, h * 0.2, colors.ink);
+  c.fillStyle = colors.gold;
+  c.fillRect(x + w * 0.44, y, w * 0.12, h * 0.2);
+}
+
+export function drawEntity(
+  c: CanvasRenderingContext2D,
+  instance: EntityInstance,
+  def: EntityDef,
+  colors: RenderColors,
+): void {
+  // def.sprite is always null until P3's sheet manifest lands; fallback-only for now.
+  drawFallback(c, def.fallback, instance, colors);
 }
 
 export function drawParticles(
   c: CanvasRenderingContext2D,
   list: readonly Particle[],
 ): void {
-  c.globalCompositeOperation = "lighter";
   for (const p of list) {
     c.globalAlpha = Math.max(0, p.life / p.maxLife);
     c.fillStyle = p.color;
-    c.beginPath();
-    c.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    c.fill();
+    const s = p.size;
+    c.fillRect(p.x - s / 2, p.y - s / 2, s, s);
   }
   c.globalAlpha = 1;
-  c.globalCompositeOperation = "source-over";
 }
 
 export function drawBanner(
@@ -531,7 +611,7 @@ export function drawBanner(
   level: number,
   bannerTime: number,
   bannerDuration: number,
-  goalColor: string,
+  colors: RenderColors,
   font: string,
 ): void {
   if (bannerTime <= 0) {
@@ -539,15 +619,19 @@ export function drawBanner(
   }
   const t = bannerTime / bannerDuration;
   c.globalAlpha = Math.min(1, t * 2.5);
-  c.fillStyle = goalColor;
-  c.shadowColor = goalColor;
-  c.shadowBlur = 22;
-  c.font = `italic 900 ${Math.round(view.w * 0.09)}px ${font}`;
   c.textAlign = "center";
-  c.fillText(`LEVEL ${level}`, view.w / 2, view.h * 0.3 - (1 - t) * 24);
+  const titleY = view.h * 0.3 - (1 - t) * 12;
+  const subY = view.h * 0.3 + view.w * 0.055;
+  c.font = `italic 900 ${Math.round(view.w * 0.09)}px ${font}`;
+  c.fillStyle = colors.ink;
+  c.fillText(`LEVEL ${level}`, view.w / 2 + 1, titleY + 1);
+  c.fillStyle = colors.gold;
+  c.fillText(`LEVEL ${level}`, view.w / 2, titleY);
   c.font = `700 ${Math.round(view.w * 0.045)}px ${font}`;
-  c.fillText("SPEED UP!", view.w / 2, view.h * 0.3 + view.w * 0.055);
-  c.shadowBlur = 0;
+  c.fillStyle = colors.ink;
+  c.fillText("SPEED UP!", view.w / 2 + 1, subY + 1);
+  c.fillStyle = colors.gold;
+  c.fillText("SPEED UP!", view.w / 2, subY);
   c.globalAlpha = 1;
   c.textAlign = "start";
 }
@@ -555,18 +639,13 @@ export function drawBanner(
 export interface FrameSim {
   bgOffset: number;
   distance: number;
-  obstacles: readonly Box[];
+  obstacles: readonly EntityInstance[];
   dust: readonly Particle[];
   sparks: readonly Particle[];
   speedLines: readonly SpeedLine[];
   animTime: number;
   bannerTime: number;
   shakeTime: number;
-}
-
-export interface FrameImages {
-  player: HTMLImageElement | null;
-  obstacle: HTMLImageElement | null;
 }
 
 export interface FrameConfig {
@@ -582,28 +661,18 @@ export interface FrameConfig {
 
 export interface RenderFrameArgs {
   view: View;
-  roadGradient: CanvasGradient | null;
   sim: FrameSim;
-  images: FrameImages;
-  glowSprite: GlowSprite | null;
   player: Box;
   level: number;
   config: FrameConfig;
+  /** Registry to resolve each obstacle's `EntityDef` by `defId` (injected, not imported, so this stays testable against any registry — entity data, owned by entities.ts, not a GAME_CONFIG tunable). */
+  defs: Record<string, EntityDef>;
 }
 
-/** Draws one full frame in the fixed pipeline order (background -> road -> entities -> fx -> banner). */
+/** Draws one full frame onto the fixed logical canvas, in pipeline order (road -> entities -> fx -> banner). */
 export function renderFrame(
   c: CanvasRenderingContext2D,
-  {
-    view,
-    roadGradient,
-    sim,
-    images,
-    glowSprite,
-    player,
-    level,
-    config,
-  }: RenderFrameArgs,
+  { view, sim, player, level, config, defs }: RenderFrameArgs,
 ): void {
   const remainingGoalPx =
     (config.targetDistance - sim.distance) * (view.h * config.speedRatio);
@@ -612,28 +681,18 @@ export function renderFrame(
     const k = (sim.shakeTime / config.shake.duration) * config.shake.magnitude;
     c.translate((Math.random() - 0.5) * 2 * k, (Math.random() - 0.5) * 2 * k);
   }
-  c.fillStyle = roadGradient ?? config.colors.roadTop;
-  c.fillRect(-20, -20, view.w + 40, view.h + 40);
-  drawCurbs(c, view, sim.bgOffset, config.colors.curb, config.colors.curbAlt);
-  drawLaneLines(
-    c,
-    view,
-    config.laneCount,
-    sim.bgOffset,
-    config.colors.laneLine,
-  );
-  drawSpeedLines(c, sim.speedLines, config.colors.speedLine);
-  drawGoalLine(
-    c,
-    view,
-    remainingGoalPx,
-    config.playerYRatio,
-    config.colors.checker[0],
-    config.colors.checker[1],
-  );
-  drawObstacles(c, sim.obstacles, images.obstacle, config.colors);
+  c.fillStyle = config.colors.duskPurple;
+  c.fillRect(-4, -4, view.w + 8, view.h + 8);
+  drawRoad(c, view, sim.bgOffset, config.colors);
+  drawCurbs(c, view, sim.bgOffset, config.colors);
+  drawLaneLines(c, view, config.laneCount, sim.bgOffset, config.colors);
+  drawSpeedLines(c, sim.speedLines, config.colors);
+  drawGoalLine(c, view, remainingGoalPx, config.playerYRatio, config.colors);
+  for (const obs of sim.obstacles) {
+    drawEntity(c, obs, defs[obs.defId], config.colors);
+  }
   drawParticles(c, sim.dust);
-  drawPlayer(c, player, sim.animTime, images.player, glowSprite, config.colors);
+  drawFallback(c, "runner", player, config.colors, sim.animTime);
   drawParticles(c, sim.sparks);
   drawBanner(
     c,
@@ -641,7 +700,7 @@ export function renderFrame(
     level,
     sim.bannerTime,
     config.bannerDuration,
-    config.colors.goal,
+    config.colors,
     config.font,
   );
   c.restore();

@@ -42,9 +42,9 @@ Status: implemented (src/App.tsx updateGame, pxPerUnit)
 - Distance advances `speed * dt` meters per frame; distance is clamped to
   `TARGET_DISTANCE` (500, `src/gameLogic.ts`).
 - Pixel scroll per frame = `speed * pxPerUnit() * dt`, where
-  `pxPerUnit = viewHeight * GAME_CONFIG.speedRatio` (0.11). After the pixel
-  pipeline lands (`SPEC-RENDER › RND-02`), `viewHeight` becomes the fixed
-  logical 320 and this mapping is otherwise unchanged.
+  `pxPerUnit = viewHeight * GAME_CONFIG.speedRatio` (0.11). Since the pixel
+  pipeline landed (`SPEC-RENDER › RND-02`), `viewHeight` is the fixed logical
+  320; the mapping itself is otherwise unchanged.
 - `dt` is clamped to 0.05 s per frame.
 
 ## Collision

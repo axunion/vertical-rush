@@ -66,7 +66,7 @@ the skill file (proves behavior didn't change).
 
 ## P2 — Pixel pipeline + fantasy re-theme (fallback art)
 
-Status: planned
+Status: implemented
 
 **Scope:** implement `SPEC-RENDER › RND-01/02/03` (180×320 offscreen canvas,
 integer scaling, letterboxing, smoothing off, logical-pixel coordinates and
