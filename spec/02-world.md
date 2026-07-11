@@ -60,7 +60,7 @@ src/sprites.ts, src/render.ts drawPlayer)
 |---|---|---|---|---|
 | `idle` | 2 | 4 | yes | ready-screen breathing |
 | `run` | 4 | 10, sped up by the current zone's level (same `0.75 + level*0.25` curve as the fallback sin-bob) | yes | replaces the current sin-bob body |
-| `switch` | 2 | 8 | no | body lean + scarf whip; fixed `GAME_CONFIG.player.switchDuration` hold (0.22s) approximating the lane-ease travel time; mirrored horizontally for the other direction |
+| `switch` | 2 | 8 | no | body lean + scarf whip; fixed `GAME_CONFIG.playerSwitchDuration` hold (0.22s) approximating the lane-ease travel time; mirrored horizontally for the other direction |
 | `crash` | 3 | 12 | no | tumble; the cake box becomes a particle |
 | `victory` | 2 | 6 | yes | box held up, hop — shown on the clear overlay |
 
