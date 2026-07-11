@@ -108,10 +108,12 @@ and ship `public/assets/sheets/poco.png` (`RND-04` layout) at minimum; retire
 Status: implemented
 
 **Scope:** `coin` entity (`SPEC-ENTITIES › ENT-02`), the `itemChance` 0.6
-coin-trail rule (`ENT-03`) via flat `ITEM_CHANCE`/`COIN_TRAIL` constants (the
-zone-keyed `SPAWN_TABLE` itself waits on P5's table-driven zones), pickup
-margin parameter on `checkCollision` (`SPEC-CORE › CORE-02`, test-first), pure
-score helper (`CORE-04`, test-first), `coin` SFX (`SPEC-AUDIO › AUD-02`), gold
+coin-trail rule (`ENT-03`) via a flat `ITEM_CHANCE` constant and `COIN_TRAIL`
+geometry (the zone-keyed `SPAWN_TABLE` itself waits on P5's table-driven
+zones; P5 later replaced flat `ITEM_CHANCE` with per-zone
+`SPAWN_TABLE[zoneId].itemChance`, removing the constant), pickup margin
+parameter on `checkCollision` (`SPEC-CORE › CORE-02`, test-first), pure score
+helper (`CORE-04`, test-first), `coin` SFX (`SPEC-AUDIO › AUD-02`), gold
 collect particles, coin counter in the HUD and results.
 
 **Completion criteria:**
@@ -125,14 +127,23 @@ coin trail and asserts the HUD counter.
 
 ## P5 — Content & difficulty pass
 
-Status: planned
+Status: partial — table-driven zones, the zone-keyed `SPAWN_TABLE`, and `gem`
+landed; zone transitions, movers, and audio additions remain planned
 
-**Scope:** table-driven zones (`SPEC-CORE › CORE-03` `ZONE_TABLE`, test-first
-rewrite of the tier boundary tests), zone transition presentation (palette
-crossfade, landmark props, castle-gate goal — `SPEC-CORE › zone transitions`,
-`WLD-05`), per-zone spawn-gap ramp replacing the legacy gap formula, movers
-(`stray-cat`, `chicken-flock`, `rolling-barrel` with `ENT-INV-2`), `gem` item,
-SFX additions (clear bell, crash noise), BGM (`AUD-03`).
+**Scope:**
+- Table-driven zones (`SPEC-CORE › CORE-03` `ZONE_TABLE`, test-first rewrite
+  of the tier boundary tests) and the per-zone spawn-gap ramp replacing the
+  legacy gap formula. *(implemented: `src/gameLogic.ts` `ZONE_TABLE`,
+  `zoneRangeAt`, `spawnGapForZone`)*
+- The zone-keyed `SPAWN_TABLE` (weighted obstacle fill via `positionObstacleRow`,
+  per-zone `itemChance`) and the `gem` item (guaranteed one per zone, safe
+  lane). *(implemented: `src/entities.ts` `SPAWN_TABLE`, `pickWeighted`,
+  `positionGem`, `shouldSpawnGem`)*
+- Zone transition presentation (palette crossfade, landmark props,
+  castle-gate goal — `SPEC-CORE › zone transitions`, `WLD-05`). *(planned)*
+- Movers (`stray-cat`, `chicken-flock`, `rolling-barrel` with `ENT-INV-2`).
+  *(planned)*
+- SFX additions (clear bell, crash noise), BGM (`AUD-03`). *(planned)*
 
 **Completion criteria:**
 - Zone boundaries and speeds match `CORE-03` exactly (boundary tests updated

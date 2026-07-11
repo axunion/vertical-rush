@@ -14,8 +14,8 @@ same entity ids.
 ## World concept: "Poco's Special Delivery"
 
 Status: partial — palette/theme implemented (P2); Poco's sprite sheet
-implemented (P3); the `coin` item landed in P4; cast beyond Poco, P2's two
-obstacles, and `coin` remains planned (P5+)
+implemented (P3); the `coin` item landed in P4, `gem` in P5; the obstacle cast
+beyond P2's two remains planned (movers, P5)
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
@@ -87,7 +87,8 @@ the other lacks (a `planned` stub row is enough).
 
 ## Item cast
 
-Status: partial — `coin` implemented (P4); the rest is planned per the phase column
+Status: partial — `coin` implemented (P4); `gem` implemented (P5); the rest
+is planned per the phase column
 
 Same pairing rule as obstacles (`WLD-01`). Effects and spawn rules are
 normative in `SPEC-ENTITIES › ENT-03`.
@@ -95,7 +96,7 @@ normative in `SPEC-ENTITIES › ENT-03`.
 | id | motif | effect (summary) | phase |
 |---|---|---|---|
 | `coin` | copper coin, 4-frame spin | +10 score | **P4** |
-| `gem` | blue gem | +50 score, placed in risky spots | P5 |
+| `gem` | blue gem | +50 score, one guaranteed per zone (safe lane, `ENT-INV-3`) | **P5** |
 | `sweet-roll` | glowing pastry | shield: absorbs one hit | post-P5 |
 | `hourglass` | blue hourglass | slow-time: world speed ×0.6 for 3 s | post-P5 |
 | `magnet` | horseshoe magnet | nearby coins fly to Poco for 5 s | post-P5 |

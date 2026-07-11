@@ -10,8 +10,11 @@ import {
   type EntityInstance,
   PLAYER_SIZE,
   positionCoinTrail,
+  positionGem,
   positionObstacleRow,
   rollsCoinTrail,
+  SPAWN_TABLE,
+  shouldSpawnGem,
   spawnRow,
 } from "./entities";
 import {
@@ -21,8 +24,9 @@ import {
   isGameCleared,
   type LevelInfo,
   SPAWN_GAP,
-  spawnGapForLevel,
+  spawnGapForZone,
   TARGET_DISTANCE,
+  zoneRangeAt,
 } from "./gameLogic";
 import {
   advanceSpeedLines,
@@ -163,6 +167,7 @@ export default function App() {
     speedLines: [] as SpeedLine[],
     nextSpawn: SPAWN_GAP.initialDelay,
     safeLane: 1,
+    gemZonesSeen: new Set<string>(),
     shakeTime: 0,
     bgOffset: 0,
     prevLevel: 1,
@@ -214,6 +219,7 @@ export default function App() {
     sim.sparks = [];
     sim.nextSpawn = SPAWN_GAP.initialDelay;
     sim.safeLane = sim.playerLane;
+    sim.gemZonesSeen.clear();
     sim.shakeTime = 0;
     sim.prevLevel = 1;
     sim.bannerTime = 0;
@@ -268,6 +274,8 @@ export default function App() {
   };
 
   const spawnObstacleRow = () => {
+    const { zone, start, end } = zoneRangeAt(sim.distance);
+    const zoneSpawn = SPAWN_TABLE[zone.id];
     const result = spawnRow(
       GAME_CONFIG.laneCount,
       sim.safeLane,
@@ -276,29 +284,46 @@ export default function App() {
     );
     sim.safeLane = result.safeLane;
     sim.obstacles.push(
-      ...positionObstacleRow(result.blockedLanes, laneCenterX),
+      ...positionObstacleRow(
+        zone.id,
+        result.blockedLanes,
+        laneCenterX,
+        Math.random,
+      ),
     );
-    if (rollsCoinTrail(Math.random)) {
+    if (rollsCoinTrail(zoneSpawn.itemChance, Math.random)) {
       sim.items.push(
         ...positionCoinTrail(sim.safeLane, laneCenterX, pxPerUnit()),
       );
     }
+    if (
+      shouldSpawnGem(zone.id, sim.distance, (start + end) / 2, sim.gemZonesSeen)
+    ) {
+      sim.gemZonesSeen.add(zone.id);
+      sim.items.push(positionGem(sim.safeLane, laneCenterX));
+    }
   };
 
   const collectItems = (items: CollectedItem[], at: Box) => {
+    let coinsCollected = 0;
+    let scoreCollected = 0;
     for (const item of items) {
       sfx[item.sfx]();
       emitSparks(
         sim.itemBurst,
         at,
         GAME_CONFIG.particles.itemBurst,
-        GAME_CONFIG.colors.gold,
+        item.defId === ENTITY_DEFS.gem.id
+          ? GAME_CONFIG.colors.duskTeal
+          : GAME_CONFIG.colors.gold,
       );
+      if (item.defId === ENTITY_DEFS.coin.id) {
+        coinsCollected++;
+      }
+      scoreCollected += item.score;
     }
-    setCoins((n) => n + items.length);
-    setCollectedScore(
-      (s) => s + items.reduce((sum, item) => sum + item.score, 0),
-    );
+    setCoins((n) => n + coinsCollected);
+    setCollectedScore((s) => s + scoreCollected);
   };
 
   const crash = (player: Box) => {
@@ -338,7 +363,7 @@ export default function App() {
 
     while (sim.distance >= sim.nextSpawn) {
       spawnObstacleRow();
-      sim.nextSpawn += spawnGapForLevel(info.level);
+      sim.nextSpawn += spawnGapForZone(sim.distance);
     }
 
     // Reaching the goal wins over a same-frame collision.

@@ -23,24 +23,22 @@ Status: partial — see the per-invariant markers
   from the first mover in P5)*
 - `ENT-INV-3` Items are always optional: collecting requires a deliberate lane
   choice and skipping one is never punished. Items spawn only in the safe lane
-  of their row. *(implemented — `src/entities.ts` `positionCoinTrail` always
-  places the trail in the row's safe lane; `advanceItems` only ever removes
-  items, never blocks progress)*
+  of their row. *(implemented — `src/entities.ts` `positionCoinTrail` and
+  `positionGem` always place in the row's safe lane; `advanceItems` only ever
+  removes items, never blocks progress)*
 
 ## Target module layout
 
-Status: partial — modules, the canonical logical-px `EntityDef.size` schema,
-`src/sprites.ts`, and the pure score helper are implemented (P1 extraction, P2
-canonical schema, P3 sprite manifest, P4 score); P4 also added the flat
-`ITEM_CHANCE`/`COIN_TRAIL` constants for the coin-trail rule — the full
-per-zone `SPAWN_TABLE` this section originally described still waits on P5's
-table-driven zones (it needs `ZONE_TABLE` zone ids to key on, which don't
-exist as data until then)
+Status: implemented — modules, the canonical logical-px `EntityDef.size`
+schema, `src/sprites.ts`, the pure score helper, `ZONE_TABLE`-driven
+`calculateLevel`, and the zone-keyed `SPAWN_TABLE` are all implemented (P1
+extraction, P2 canonical schema, P3 sprite manifest, P4 score, P5 zones +
+spawn table)
 
 | Module | Responsibility | Purity |
 |---|---|---|
 | `src/gameLogic.ts` | Existing rules + `ZONE_TABLE`-driven `calculateLevel` + `calculateScore` (`SPEC-CORE`) | pure, tested |
-| `src/entities.ts` | `EntityDef` types, `ENTITY_DEFS` registry, pure spawn-row generation with an injected `rng: () => number`, `ITEM_CHANCE`/`COIN_TRAIL` + the coin-trail/pickup helpers; `SPAWN_TABLE` (P5) | pure, tested |
+| `src/entities.ts` | `EntityDef` types, `ENTITY_DEFS` registry, pure spawn-row generation with an injected `rng: () => number`, `COIN_TRAIL` + the coin-trail/pickup/gem helpers; the zone-keyed `SPAWN_TABLE` | pure, tested |
 | `src/sprites.ts` | Sprite-sheet manifest types + data + pure frame picking (`SPEC-RENDER › RND-04`) | pure, tested |
 | `src/render.ts` | Draw dispatcher, parameterized fallback drawers, pixel pipeline, image loading (`SPEC-RENDER`) | DOM/Canvas |
 | `src/audio.ts` | `createSfx` extracted from App.tsx + SFX catalog (`SPEC-AUDIO`) | Web Audio |
@@ -98,8 +96,9 @@ calls, particles) stays in the shell — the registry never imports UI code
 ## Entity registry
 
 Status: partial — `market-crate`/`hay-cart` implemented (P2); `coin`
-implemented (P4, src/entities.ts ENTITY_DEFS); the rest of the roster is
-planned per the phase column
+implemented (P4); `gem` implemented (P5, src/entities.ts ENTITY_DEFS); movers
+(`stray-cat`/`chicken-flock`/`rolling-barrel`) are the rest of P5's scope,
+still planned
 
 `ENT-02` — **source of truth** for mechanical values. Ids pair 1:1 with
 `SPEC-WORLD` (`WLD-01`). Sizes are logical px on the 180×320 grid
@@ -116,7 +115,7 @@ planned per the phase column
 | `fountain` | obstacle | 40×40 | 1 (center only) | static | crash | 5 | market-street | post-P5 |
 | `banner-arch` | obstacle | visual 156×24; hitbox 38×24 per blocked lane | full row | static | crash | scripted | castle-road | post-P5 |
 | `coin` | item | 12×12 | 1 | static | collect +10, sfx `coin` | trail rule below | all | **P4** |
-| `gem` | item | 12×12 | 1 | static | collect +50, sfx `coin` | 1 per zone | all | P5 |
+| `gem` | item | 12×12 | 1 | static | collect +50, sfx `coin` | 1 per zone | all | **P5** |
 | `sweet-roll` | item | 14×14 | 1 | static | shield *(planned effect)* | rare | all | post-P5 |
 | `hourglass` | item | 12×16 | 1 | static | slow *(planned effect)* | rare | all | post-P5 |
 | `magnet` | item | 14×12 | 1 | static | magnet *(planned effect)* | rare | all | post-P5 |
@@ -127,43 +126,20 @@ current single obstacle type becomes the `market-crate` registry row; the
 current `doubleChance` all-open-lanes spawn is retired in favor of `hay-cart`
 occupying 2 lanes (same practical effect: one row can block 2 of 3 lanes).
 
-P2 interim (while the legacy blockAll spawn is still in place): a blockAll row
-whose two blocked lanes are **adjacent** renders as one `hay-cart`;
-non-adjacent (safe lane in the center) renders two `market-crate`s. P4 left
-this obstacle rule untouched (its scope was items only); the registry-driven
-2-lane spawn replaces this rule in P5, alongside the zone-keyed
-`SPAWN_TABLE`.
+`positionObstacleRow` (P5): a blockAll row whose two blocked lanes are
+**adjacent** weighted-picks one 2-lane obstacle (`ENTITY_DEFS` filtered to
+`lanes === 2`, currently only `hay-cart`) centered between them; non-adjacent
+lanes each independently weighted-pick a 1-lane obstacle (currently only
+`market-crate`). The weighted pick is keyed by `SPAWN_TABLE[zoneId].obstacles`,
+so it stays a no-op today (one candidate per lane count) but needs no shell
+changes when movers add more 1-lane candidates (`ENT-05`).
 
 ## Spawning
 
-Status: partial — see the two subsections
+Status: partial — the zone-keyed `SPAWN_TABLE` and its consumers are
+implemented (P5); movers (`ENT-INV-2`) are the remaining planned piece
 
-### Implemented today (src/entities.ts spawnRow/positionObstacleRow/advanceObstacles, src/App.tsx updateGame)
-
-Status: implemented
-
-- Safe lane does a clamped random walk per row: `step ∈ {-1, 0, +1}` uniform.
-- With probability `doubleChance` (0.45) all non-safe lanes are blocked;
-  otherwise one random non-safe lane is blocked.
-- Rows spawn on a distance schedule: see `SPEC-CORE › zones` for the gap
-  formula (8 / 6.8 / 5.6 m by level, initial delay 6 m).
-- Off-screen obstacles (below the view) are removed each frame.
-- Blocked lanes are filled per the `ENT-02` P2 interim rule: two adjacent
-  blocked lanes render as one `hay-cart`; otherwise each blocked lane gets
-  its own `market-crate` (`positionObstacleRow`).
-
-This algorithm is proven and is **preserved** through the redesign; the
-registry-driven pick above is a stepping stone — the full weighted
-`SPAWN_TABLE` (multiple obstacle/item weights per zone) still arrives in P5.
-
-### Planned spawn table (P5)
-
-Status: planned — `ENT-03`'s itemChance/coin-trail rule shipped in P4 as flat
-constants (below) since it doesn't vary per zone yet; the zone-keyed
-`SPAWN_TABLE` type itself waits on P5's table-driven zones (`SPEC-CORE ›
-CORE-03`), which is what supplies the zone ids to key on
-
-Canonical (target: `src/entities.ts`, P5):
+Canonical (`src/entities.ts`):
 
 ```ts
 export interface WeightedRef {
@@ -182,24 +158,43 @@ export const SPAWN_TABLE: Record<string /* zone id, SPEC-CORE › CORE-03 */, Zo
 };
 ```
 
-- `ENT-03` **Coin trail rule** *(implemented, P4: `src/entities.ts`
-  `ITEM_CHANCE`, `COIN_TRAIL`, `positionCoinTrail`)*: when a row rolls under
-  `ITEM_CHANCE` (0.6), place a trail of `COIN_TRAIL.count` (3) `coin`
-  instances in that row's **safe lane**: the first coin `COIN_TRAIL.leadGapM`
-  (2 m) behind the row (further from the player), the rest spaced
-  `COIN_TRAIL.spacingM` (1 m) apart. Coins therefore softly signpost the safe
-  lane — onboarding and reward in one mechanic, and `ENT-INV-3` holds by
-  construction. These constants are flat today (same trail for every zone);
-  P5's `SPAWN_TABLE` replaces them with a per-zone `itemChance`.
+- Safe lane does a clamped random walk per row: `step ∈ {-1, 0, +1}` uniform
+  (`spawnRow`).
+- With probability `doubleChance` (0.45) all non-safe lanes are blocked;
+  otherwise one random non-safe lane is blocked (`spawnRow`).
+- Rows spawn on a distance schedule: see `SPEC-CORE › zones` for the per-zone
+  spawn-gap ramp (`spawnGapForZone`), after an initial 6 m delay.
+- Off-screen obstacles (below the view) are removed each frame
+  (`advanceObstacles`).
+- Blocked lanes are filled by `positionObstacleRow`, weighted-picking from
+  `SPAWN_TABLE[zoneId].obstacles` filtered to the lane count needed (`ENT-05`
+  extensibility contract; today only one candidate exists per lane count, so
+  behavior is unchanged from the pre-P5 hardcoded rule).
+- `ENT-03` **Coin trail rule** (`src/entities.ts` `COIN_TRAIL`,
+  `positionCoinTrail`, `rollsCoinTrail`): when a row rolls under the active
+  zone's `SPAWN_TABLE[zoneId].itemChance` (0.6, flat across zones today),
+  place a trail of `COIN_TRAIL.count` (3) `coin` instances in that row's
+  **safe lane**: the first coin `COIN_TRAIL.leadGapM` (2 m) behind the row
+  (further from the player), the rest spaced `COIN_TRAIL.spacingM` (1 m)
+  apart. Coins therefore softly signpost the safe lane — onboarding and
+  reward in one mechanic, and `ENT-INV-3` holds by construction. The trail
+  geometry (`COIN_TRAIL`) stays flat across zones; only `itemChance` is
+  per-zone data.
+- `ENT-02` **gem placement**: exactly one `gem` per zone, guaranteed (not a
+  weighted roll like `items`) once distance passes the zone's midpoint
+  (`zoneRangeAt` start/end averaged), placed in that row's safe lane
+  (`shouldSpawnGem`, `positionGem`) — `ENT-INV-3` holds by construction, same
+  as the coin trail.
 - 2-lane entities (`hay-cart`) require 2 adjacent non-safe lanes; when the
   safe lane is the center lane, fall back to a 1-lane pick.
-- Movers (P5) must respect `ENT-INV-2`; the spawn generator stays pure and
-  deterministic given the injected rng.
+- Movers (P5, still planned) must respect `ENT-INV-2`; the spawn generator
+  stays pure and deterministic given the injected rng.
 
 ## Collection mechanics
 
 Status: implemented (P4: src/entities.ts advanceItems, src/gameLogic.ts
-checkCollision marginRate + PICKUP_MARGIN_RATE, src/App.tsx collectItems)
+checkCollision marginRate + PICKUP_MARGIN_RATE, src/App.tsx collectItems; P5:
+gem support via CollectedItem.defId)
 
 - `ENT-04` Item pickup reuses `checkCollision` with the generous margin
   `PICKUP_MARGIN_RATE = 0.1` via the optional parameter from
@@ -207,10 +202,12 @@ checkCollision marginRate + PICKUP_MARGIN_RATE, src/App.tsx collectItems)
   (a smaller shrink leaves bigger effective boxes). No second collision path
   exists (`CORE-INV-1`).
 - On collect: `advanceItems` removes the instance and reports its
-  `onCollision.score`/`sfx`; `src/App.tsx` `collectItems` adds the score to
-  the run's collected score (`SPEC-CORE › CORE-04`), plays the sfx, and emits
-  a small gold particle burst (`GAME_CONFIG.particles.itemBurst`). The run
-  never stops for an item.
+  `defId`/`onCollision.score`/`sfx`; `src/App.tsx` `collectItems` adds the
+  score to the run's collected score (`SPEC-CORE › CORE-04`) regardless of
+  item type, plays the sfx, and emits a small particle burst
+  (`GAME_CONFIG.particles.itemBurst`, gold for `coin` / dusk-teal for `gem`).
+  The HUD's 🪙 counter only counts `defId === "coin"` pickups — `gem` adds to
+  the score total without incrementing it. The run never stops for an item.
 - Effect items (`shield`, `slow`, `magnet`) are post-P5. Reserved design: a
   single `activeEffects` structure on the sim, effects never stack, re-collect
   refreshes duration. Do not build any of this before its phase.

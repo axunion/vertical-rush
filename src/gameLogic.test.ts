@@ -6,20 +6,41 @@ import {
   checkCollision,
   isGameCleared,
   PICKUP_MARGIN_RATE,
-  spawnGapForLevel,
+  spawnGapForZone,
+  TARGET_DISTANCE,
+  zoneRangeAt,
 } from "./gameLogic";
 
-describe("spawnGapForLevel", () => {
+describe("zoneRangeAt", () => {
   it.each([
-    [1, 8],
-    [2, 6.8],
-    [3, 5.6],
-  ])("returns %f m gap at level %i", (level, expected) => {
-    expect(spawnGapForLevel(level)).toBeCloseTo(expected);
+    [0, "old-town", 0, 100],
+    [100, "old-town", 0, 100],
+    [100.5, "market-street", 100, 300],
+    [300, "market-street", 100, 300],
+    [301, "castle-road", 300, TARGET_DISTANCE],
+    [600, "castle-road", 300, TARGET_DISTANCE],
+  ])("at distance %f resolves zone %s spanning %f..%f", (distance, id, start, end) => {
+    const range = zoneRangeAt(distance);
+    expect(range.zone.id).toBe(id);
+    expect(range.start).toBe(start);
+    expect(range.end).toBe(end);
   });
+});
 
-  it("clamps to the minimum gap beyond level 3", () => {
-    expect(spawnGapForLevel(10)).toBe(5.5);
+describe("spawnGapForZone", () => {
+  it.each([
+    [0, 8],
+    [50, 7.5],
+    [100, 7],
+    [100.5, 7],
+    [200, 6.5],
+    [300, 6],
+    [301, 6],
+    [400, 5.75],
+    [500, 5.5],
+    [600, 5.5],
+  ])("returns %f m gap at distance %f", (distance, expected) => {
+    expect(spawnGapForZone(distance)).toBeCloseTo(expected);
   });
 });
 

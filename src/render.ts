@@ -541,6 +541,8 @@ export function drawFallback(
     drawCartShape(c, x, y, w, h, colors);
   } else if (shape === "coin") {
     drawCoinShape(c, x, y, w, h, colors);
+  } else if (shape === "gem") {
+    drawGemShape(c, x, y, w, h, colors);
   } else {
     drawRunnerShape(c, x, y, w, h, colors, animTime);
   }
@@ -597,6 +599,29 @@ function drawCoinShape(
   strokeInset(c, x, y, w, h, colors.ink);
   c.fillStyle = colors.warmWhite;
   c.fillRect(x + w * 0.3, y + h * 0.25, w * 0.25, h * 0.25);
+}
+
+function drawGemShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.duskTeal;
+  c.beginPath();
+  c.moveTo(x + w / 2, y);
+  c.lineTo(x + w, y + h * 0.4);
+  c.lineTo(x + w / 2, y + h);
+  c.lineTo(x, y + h * 0.4);
+  c.closePath();
+  c.fill();
+  c.strokeStyle = colors.ink;
+  c.lineWidth = 1;
+  c.stroke();
+  c.fillStyle = colors.warmWhite;
+  c.fillRect(x + w * 0.4, y + h * 0.2, w * 0.2, h * 0.2);
 }
 
 function drawRunnerShape(

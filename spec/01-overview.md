@@ -41,7 +41,7 @@ Status: implemented (terms in current code) / planned where marked
 | phase | UI/sim state machine: `ready → running → cleared \| gameover` |
 | sim | Plain mutable per-frame state object in `src/App.tsx` (not Solid signals) |
 | view | Plain object holding derived canvas geometry (`w`, `h`, `roadPad`, `laneWidth`) |
-| zone *(planned)* | Named themed segment of the run (old-town / market-street / castle-road); 1:1 with today's levels — see `SPEC-CORE` |
+| zone | Named themed segment of the run (old-town / market-street / castle-road); 1:1 with today's levels — see `SPEC-CORE` |
 | entity | Any spawnable object (obstacle or item) defined by an `EntityDef` registry row |
 | logical pixel | Coordinate unit of the 180×320 offscreen canvas — see `SPEC-RENDER › RND-01` |
 | fallback drawing | Canvas-primitive rendering used when a sprite sheet PNG is absent (the only path today; sprite sheets arrive in P3) |
@@ -61,7 +61,7 @@ detailed by the referenced spec.
 | `ENT-INV-1` | Every spawned row leaves at least one passable lane. *(implemented via the safe-lane random walk)* | `SPEC-ENTITIES` |
 | `ENT-INV-2` | Moving obstacles never enter the current safe lane while within 1.5 player heights of the player row. *(planned — binds when movers exist)* | `SPEC-ENTITIES` |
 | `RND-INV-1` | The game is fully playable and visually coherent with zero PNG assets present; asset load failure is silent and per-sheet. *(implemented — primitives are currently the only path)* | `SPEC-RENDER` |
-| `OVR-INV-1` | No magic numbers at use sites: every tunable lives in a named config/table in the module that owns it (view/feel in `GAME_CONFIG`, entity data in `entities.ts`, difficulty in `gameLogic.ts`). *(implemented — tunables now split across `GAME_CONFIG` in `src/App.tsx`, `ENTITY_DEFS` in `src/entities.ts`, and `SPAWN_GAP`/`ZONE_TABLE`-precursor tiers in `src/gameLogic.ts`)* | this spec |
+| `OVR-INV-1` | No magic numbers at use sites: every tunable lives in a named config/table in the module that owns it (view/feel in `GAME_CONFIG`, entity data in `entities.ts`, difficulty in `gameLogic.ts`). *(implemented — tunables now split across `GAME_CONFIG` in `src/App.tsx`, `ENTITY_DEFS`/`SPAWN_TABLE` in `src/entities.ts`, and `SPAWN_GAP`/`ZONE_TABLE` in `src/gameLogic.ts`)* | this spec |
 
 ## Environment constraints
 

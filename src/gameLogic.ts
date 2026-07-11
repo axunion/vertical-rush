@@ -23,31 +23,73 @@ export const COLLISION_MARGIN_RATE = 0.2;
 /** Item pickup margin rate (ENT-04): more generous than COLLISION_MARGIN_RATE. */
 export const PICKUP_MARGIN_RATE = 0.1;
 
-/** Distance (m) before the first row spawns, and the per-level row-gap ramp. */
+/** Distance (m) before the first row spawns (CORE-03). */
 export const SPAWN_GAP = {
   initialDelay: 6,
-  baseGap: 8,
-  gapPerLevel: 1.2,
-  minGap: 5.5,
 } as const;
 
-/** Meters between spawned rows at the given level: 8 / 6.8 / 5.6 at levels 1/2/3. */
-export function spawnGapForLevel(level: number): number {
-  return Math.max(
-    SPAWN_GAP.minGap,
-    SPAWN_GAP.baseGap - (level - 1) * SPAWN_GAP.gapPerLevel,
-  );
+export interface ZoneDef {
+  id: string;
+  level: number;
+  upTo: number;
+  speed: number;
+  spawnGap: { from: number; to: number };
+}
+
+/** CORE-03 — source of truth for zone values. */
+export const ZONE_TABLE: readonly ZoneDef[] = [
+  {
+    id: "old-town",
+    level: 1,
+    upTo: 100,
+    speed: 5,
+    spawnGap: { from: 8, to: 7 },
+  },
+  {
+    id: "market-street",
+    level: 2,
+    upTo: 300,
+    speed: 8,
+    spawnGap: { from: 7, to: 6 },
+  },
+  {
+    id: "castle-road",
+    level: 3,
+    upTo: Infinity,
+    speed: 12,
+    spawnGap: { from: 6, to: 5.5 },
+  },
+];
+
+export interface ZoneRange {
+  zone: ZoneDef;
+  /** Distance (m) the zone starts at. */
+  start: number;
+  /** Distance (m) the zone's spawn-gap ramp finishes at; the last (Infinite) zone's ramp ends at TARGET_DISTANCE. */
+  end: number;
+}
+
+/** Resolves the zone active at `distance`, plus its ramp bounds (CORE-03). */
+export function zoneRangeAt(distance: number): ZoneRange {
+  const d = Math.max(0, distance);
+  const index = ZONE_TABLE.findIndex((z) => d <= z.upTo);
+  const zone = ZONE_TABLE[index === -1 ? ZONE_TABLE.length - 1 : index];
+  const start = index <= 0 ? 0 : ZONE_TABLE[index - 1].upTo;
+  const end = Number.isFinite(zone.upTo) ? zone.upTo : TARGET_DISTANCE;
+  return { zone, start, end };
 }
 
 export function calculateLevel(distance: number): LevelInfo {
-  const d = Math.max(0, distance);
-  if (d <= 100) {
-    return { level: 1, speed: 5 };
-  }
-  if (d <= 300) {
-    return { level: 2, speed: 8 };
-  }
-  return { level: 3, speed: 12 };
+  const { zone } = zoneRangeAt(distance);
+  return { level: zone.level, speed: zone.speed };
+}
+
+/** Meters until the next row spawns: linear ramp across the active zone's spawnGap (CORE-03). */
+export function spawnGapForZone(distance: number): number {
+  const { zone, start, end } = zoneRangeAt(distance);
+  const span = end - start;
+  const t = span > 0 ? Math.min(1, Math.max(0, (distance - start) / span)) : 1;
+  return zone.spawnGap.from + (zone.spawnGap.to - zone.spawnGap.from) * t;
 }
 
 export function isGameCleared(distance: number, target: number): boolean {

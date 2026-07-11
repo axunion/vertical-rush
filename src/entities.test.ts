@@ -5,11 +5,14 @@ import {
   COIN_TRAIL,
   ENTITY_DEFS,
   type EntityInstance,
-  ITEM_CHANCE,
   PLAYER_SIZE,
+  pickWeighted,
   positionCoinTrail,
+  positionGem,
   positionObstacleRow,
   rollsCoinTrail,
+  SPAWN_TABLE,
+  shouldSpawnGem,
   spawnRow,
 } from "./entities";
 
@@ -108,11 +111,47 @@ describe("advanceObstacles", () => {
   });
 });
 
+describe("pickWeighted", () => {
+  const refs = [
+    { defId: "a", weight: 1 },
+    { defId: "b", weight: 3 },
+  ];
+
+  it("picks the first ref when the roll lands in its weight share", () => {
+    expect(pickWeighted(refs, () => 0)).toBe("a");
+  });
+
+  it("picks a later ref when the roll lands past earlier weight shares", () => {
+    expect(pickWeighted(refs, () => 0.99)).toBe("b");
+  });
+
+  it("falls back to the last ref for a roll at the very top of the range", () => {
+    expect(pickWeighted(refs, () => 0.999999)).toBe("b");
+  });
+});
+
+describe("SPAWN_TABLE", () => {
+  it("has an entry for every zone with market-crate/hay-cart obstacles and a coin item", () => {
+    for (const zoneId of ["old-town", "market-street", "castle-road"]) {
+      const zoneSpawn = SPAWN_TABLE[zoneId];
+      expect(zoneSpawn.obstacles.map((r) => r.defId).sort()).toEqual([
+        "hay-cart",
+        "market-crate",
+      ]);
+      expect(zoneSpawn.items).toEqual([{ defId: "coin", weight: 1 }]);
+      expect(zoneSpawn.itemChance).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("positionObstacleRow", () => {
   const laneCenterX = (lane: number) => 30 + lane * 100;
+  // Today only market-crate (lanes:1) and hay-cart (lanes:2) exist per zone, so
+  // the weighted pick is deterministic regardless of rng until movers land.
+  const rng = () => 0;
 
   it("places one market-crate per blocked lane when a single lane is blocked", () => {
-    const [obs] = positionObstacleRow([2], laneCenterX);
+    const [obs] = positionObstacleRow("old-town", [2], laneCenterX, rng);
     const { size } = ENTITY_DEFS["market-crate"];
     expect(obs).toEqual({
       defId: "market-crate",
@@ -125,7 +164,7 @@ describe("positionObstacleRow", () => {
   });
 
   it("places one hay-cart centered across two adjacent blocked lanes", () => {
-    const result = positionObstacleRow([0, 1], laneCenterX);
+    const result = positionObstacleRow("old-town", [0, 1], laneCenterX, rng);
     const { size } = ENTITY_DEFS["hay-cart"];
     const centerX = (laneCenterX(0) + laneCenterX(1)) / 2;
     expect(result).toEqual([
@@ -141,7 +180,7 @@ describe("positionObstacleRow", () => {
   });
 
   it("places two market-crates when the blocked lanes are not adjacent", () => {
-    const result = positionObstacleRow([0, 2], laneCenterX);
+    const result = positionObstacleRow("old-town", [0, 2], laneCenterX, rng);
     expect(result.map((o) => o.defId)).toEqual([
       "market-crate",
       "market-crate",
@@ -167,15 +206,59 @@ describe("ENTITY_DEFS", () => {
       sfx: "coin",
     });
   });
+
+  it("matches the ENT-02 source-of-truth footprint and collect effect for gem", () => {
+    expect(ENTITY_DEFS.gem.size).toEqual({ w: 12, h: 12 });
+    expect(ENTITY_DEFS.gem.lanes).toBe(1);
+    expect(ENTITY_DEFS.gem.onCollision).toEqual({
+      kind: "collect",
+      score: 50,
+      sfx: "coin",
+    });
+  });
 });
 
 describe("rollsCoinTrail", () => {
-  it("rolls true when rng is below ITEM_CHANCE", () => {
-    expect(rollsCoinTrail(() => 0)).toBe(true);
+  it("rolls true when rng is below the given itemChance", () => {
+    expect(rollsCoinTrail(0.6, () => 0)).toBe(true);
   });
 
-  it("rolls false when rng is at or above ITEM_CHANCE", () => {
-    expect(rollsCoinTrail(() => ITEM_CHANCE)).toBe(false);
+  it("rolls false when rng is at or above the given itemChance", () => {
+    expect(rollsCoinTrail(0.6, () => 0.6)).toBe(false);
+  });
+});
+
+describe("positionGem", () => {
+  const laneCenterX = (lane: number) => 30 + lane * 100;
+
+  it("places a single gem in the given lane at the row's leading edge", () => {
+    const gem = positionGem(1, laneCenterX);
+    const { size } = ENTITY_DEFS.gem;
+    expect(gem).toEqual({
+      defId: "gem",
+      lane: 1,
+      x: laneCenterX(1) - size.w / 2,
+      y: -size.h,
+      width: size.w,
+      height: size.h,
+    });
+  });
+});
+
+describe("shouldSpawnGem", () => {
+  it("returns false before the zone's midpoint", () => {
+    expect(shouldSpawnGem("old-town", 40, 50, new Set())).toBe(false);
+  });
+
+  it("returns true at or after the midpoint when the zone hasn't been gemmed yet", () => {
+    expect(shouldSpawnGem("old-town", 50, 50, new Set())).toBe(true);
+    expect(shouldSpawnGem("old-town", 90, 50, new Set())).toBe(true);
+  });
+
+  it("returns false once the zone has already been gemmed", () => {
+    expect(shouldSpawnGem("old-town", 90, 50, new Set(["old-town"]))).toBe(
+      false,
+    );
   });
 });
 
@@ -231,8 +314,16 @@ describe("advanceItems", () => {
       { defId: "coin", lane: 0, x: 45, y: 205, width: 12, height: 12 },
     ];
     const collected = advanceItems(items, 0, 320, player);
-    expect(collected).toEqual([{ score: 10, sfx: "coin" }]);
+    expect(collected).toEqual([{ defId: "coin", score: 10, sfx: "coin" }]);
     expect(items).toHaveLength(0);
+  });
+
+  it("reports the collected item's defId so callers can distinguish coin from gem", () => {
+    const items: EntityInstance[] = [
+      { defId: "gem", lane: 0, x: 45, y: 205, width: 12, height: 12 },
+    ];
+    const collected = advanceItems(items, 0, 320, player);
+    expect(collected).toEqual([{ defId: "gem", score: 50, sfx: "coin" }]);
   });
 });
 

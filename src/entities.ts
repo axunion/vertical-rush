@@ -12,7 +12,7 @@ export type CollisionEffect =
 
 export type BehaviorDef = { kind: "static" };
 
-export type FallbackShape = "runner" | "crate" | "cart" | "coin";
+export type FallbackShape = "runner" | "crate" | "cart" | "coin" | "gem";
 
 export interface EntityDef {
   id: string;
@@ -61,17 +61,79 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     fallback: "coin",
     onCollision: { kind: "collect", score: 10, sfx: "coin" },
   },
+  gem: {
+    id: "gem",
+    category: "item",
+    size: { w: 12, h: 12 },
+    lanes: 1,
+    behavior: { kind: "static" },
+    sprite: null,
+    fallback: "gem",
+    onCollision: { kind: "collect", score: 50, sfx: "coin" },
+  },
 };
 
-/** ENT-03: probability a spawned row also gets a coin trail in its safe lane. */
-export const ITEM_CHANCE = 0.6;
-
-/** ENT-03: coin trail geometry, in meters measured behind the row's leading edge. */
+/** ENT-03: coin trail geometry, in meters measured behind the row's leading edge. Flat across zones. */
 export const COIN_TRAIL = {
   count: 3,
   leadGapM: 2,
   spacingM: 1,
 } as const;
+
+export interface WeightedRef {
+  defId: string;
+  weight: number;
+}
+
+export interface ZoneSpawn {
+  /** Fills blocked lanes; weights from ENT-02. */
+  obstacles: WeightedRef[];
+  /** Probability a row also gets a coin trail. */
+  itemChance: number;
+  items: WeightedRef[];
+}
+
+const DEFAULT_OBSTACLES: WeightedRef[] = [
+  { defId: "market-crate", weight: 40 },
+  { defId: "hay-cart", weight: 20 },
+];
+
+const DEFAULT_ITEMS: WeightedRef[] = [{ defId: "coin", weight: 1 }];
+
+/** ENT-05/CORE-03 — per-zone obstacle/item weights, keyed by ZONE_TABLE zone id. */
+export const SPAWN_TABLE: Record<string, ZoneSpawn> = {
+  "old-town": {
+    obstacles: DEFAULT_OBSTACLES,
+    itemChance: 0.6,
+    items: DEFAULT_ITEMS,
+  },
+  "market-street": {
+    obstacles: DEFAULT_OBSTACLES,
+    itemChance: 0.6,
+    items: DEFAULT_ITEMS,
+  },
+  "castle-road": {
+    obstacles: DEFAULT_OBSTACLES,
+    itemChance: 0.6,
+    items: DEFAULT_ITEMS,
+  },
+};
+
+/** Weighted random pick among `refs`, using the injected rng (deterministic under Math.random stubbing). */
+export function pickWeighted(
+  refs: readonly WeightedRef[],
+  rng: () => number,
+): string {
+  const total = refs.reduce((sum, ref) => sum + ref.weight, 0);
+  let roll = rng() * total;
+  for (const ref of refs) {
+    if (roll < ref.weight) {
+      return ref.defId;
+    }
+    roll -= ref.weight;
+  }
+  return refs[refs.length - 1].defId;
+}
 
 export interface SpawnResult {
   safeLane: number;
@@ -105,43 +167,56 @@ export function spawnRow(
 }
 
 /**
- * Builds positioned obstacle instances for a row's blocked lanes (ENT-02 P2
- * interim rule): two adjacent blocked lanes render as one `hay-cart`
- * centered between them; otherwise each blocked lane gets its own
- * `market-crate`. This is the interim stand-in for the registry-driven
- * SPAWN_TABLE that arrives in P5.
+ * Builds positioned obstacle instances for a row's blocked lanes, weighted-
+ * picking from the zone's `SPAWN_TABLE` obstacles (ENT-05): two adjacent
+ * blocked lanes get one 2-lane obstacle centered between them; otherwise
+ * each blocked lane independently gets its own 1-lane obstacle.
  */
+/** Builds an instance of `defId` in `lane`, centered on `centerX`, at the row's leading edge. */
+function placeAtLeadingEdge(
+  defId: string,
+  lane: number,
+  centerX: number,
+): EntityInstance {
+  const def = ENTITY_DEFS[defId];
+  return {
+    defId,
+    lane,
+    x: centerX - def.size.w / 2,
+    y: -def.size.h,
+    width: def.size.w,
+    height: def.size.h,
+  };
+}
+
 export function positionObstacleRow(
+  zoneId: string,
   blockedLanes: readonly number[],
   laneCenterX: (lane: number) => number,
+  rng: () => number,
 ): EntityInstance[] {
-  const cart = ENTITY_DEFS["hay-cart"];
+  const refs = SPAWN_TABLE[zoneId].obstacles;
+  const twoLaneRefs = refs.filter((r) => ENTITY_DEFS[r.defId].lanes === 2);
+  const oneLaneRefs = refs.filter((r) => ENTITY_DEFS[r.defId].lanes === 1);
+
   if (
-    blockedLanes.length === cart.lanes &&
-    Math.abs(blockedLanes[0] - blockedLanes[1]) === 1
+    blockedLanes.length === 2 &&
+    Math.abs(blockedLanes[0] - blockedLanes[1]) === 1 &&
+    twoLaneRefs.length > 0
   ) {
     const centerX =
       (laneCenterX(blockedLanes[0]) + laneCenterX(blockedLanes[1])) / 2;
     return [
-      {
-        defId: "hay-cart",
-        lane: Math.min(blockedLanes[0], blockedLanes[1]),
-        x: centerX - cart.size.w / 2,
-        y: -cart.size.h,
-        width: cart.size.w,
-        height: cart.size.h,
-      },
+      placeAtLeadingEdge(
+        pickWeighted(twoLaneRefs, rng),
+        Math.min(blockedLanes[0], blockedLanes[1]),
+        centerX,
+      ),
     ];
   }
-  const def = ENTITY_DEFS["market-crate"];
-  return blockedLanes.map((lane) => ({
-    defId: "market-crate",
-    lane,
-    x: laneCenterX(lane) - def.size.w / 2,
-    y: -def.size.h,
-    width: def.size.w,
-    height: def.size.h,
-  }));
+  return blockedLanes.map((lane) =>
+    placeAtLeadingEdge(pickWeighted(oneLaneRefs, rng), lane, laneCenterX(lane)),
+  );
 }
 
 /**
@@ -170,12 +245,36 @@ export function advanceObstacles(
 }
 
 /**
- * ENT-03: whether a spawned row also gets a coin trail, given the injected
- * rng — mirrors `spawnRow`'s `doubleChance` roll so the e2e harness's
- * `Math.random` stubbing keeps producing deterministic runs.
+ * ENT-03: whether a spawned row also gets a coin trail, given the zone's
+ * `itemChance` (SPAWN_TABLE) and the injected rng — mirrors `spawnRow`'s
+ * `doubleChance` roll so the e2e harness's `Math.random` stubbing keeps
+ * producing deterministic runs.
  */
-export function rollsCoinTrail(rng: () => number): boolean {
-  return rng() < ITEM_CHANCE;
+export function rollsCoinTrail(itemChance: number, rng: () => number): boolean {
+  return rng() < itemChance;
+}
+
+/**
+ * Builds a single gem instance in `lane` at the row's leading edge (ENT-02).
+ */
+export function positionGem(
+  lane: number,
+  laneCenterX: (lane: number) => number,
+): EntityInstance {
+  return placeAtLeadingEdge("gem", lane, laneCenterX(lane));
+}
+
+/**
+ * ENT-02: exactly one gem per zone, guaranteed once `distance` passes the
+ * zone's midpoint, as long as that zone hasn't already been gemmed.
+ */
+export function shouldSpawnGem(
+  zoneId: string,
+  distance: number,
+  zoneMidpoint: number,
+  gemZonesSeen: ReadonlySet<string>,
+): boolean {
+  return !gemZonesSeen.has(zoneId) && distance >= zoneMidpoint;
 }
 
 /**
@@ -205,6 +304,7 @@ export function positionCoinTrail(
 }
 
 export interface CollectedItem {
+  defId: string;
   score: number;
   sfx: SfxId;
 }
@@ -233,7 +333,11 @@ export function advanceItems(
     if (checkCollision(player, item, PICKUP_MARGIN_RATE)) {
       const effect = ENTITY_DEFS[item.defId].onCollision;
       if (effect.kind === "collect") {
-        collected.push({ score: effect.score, sfx: effect.sfx });
+        collected.push({
+          defId: item.defId,
+          score: effect.score,
+          sfx: effect.sfx,
+        });
       }
       items.splice(i, 1);
     }

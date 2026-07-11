@@ -65,12 +65,12 @@ tests are unaffected.
 
 ## Zones (level & difficulty table)
 
-Status: partial — current 3 hardcoded tiers implemented (src/gameLogic.ts calculateLevel); table-driven zones planned (P5)
+Status: implemented (P5: src/gameLogic.ts ZONE_TABLE, zoneRangeAt, calculateLevel, spawnGapForZone)
 
-Today `calculateLevel(distance)` returns 3 hardcoded tiers. The redesign keeps
-the exact same thresholds and speeds (so existing boundary tests in
-`src/gameLogic.test.ts` remain valid) but makes them a data table with a world
-identity per tier.
+`calculateLevel(distance)` derives from `ZONE_TABLE`, keeping the exact same
+thresholds, speeds, and signature the hardcoded-tier version had (existing
+boundary tests in `src/gameLogic.test.ts` remain valid unmodified) — the table
+adds a world identity per tier.
 
 `CORE-03` — **source of truth** for zone values:
 
@@ -81,7 +81,11 @@ identity per tier.
 | `castle-road` | 3 | 300 < d | 12 | 6 → 5.5 | dusk: cool road, torch-glow accents |
 
 Boundary semantics match the implemented code: bounds are **inclusive upper**
-(`d <= 100` is still `old-town`), and the last zone extends beyond 500 m.
+(`d <= 100` is still `old-town`), and the last zone extends beyond 500 m. Since
+`castle-road`'s `upTo` is `Infinity`, its spawn-gap ramp (and the `zoneMidpoint`
+that `SPEC-ENTITIES › ENT-02` gem placement uses) has no natural end distance;
+`zoneRangeAt` caps it at `TARGET_DISTANCE` (500), giving it the same 200 m ramp
+span as `market-street` and reaching `5.5` exactly at the goal.
 
 Canonical types (target: `src/gameLogic.ts`):
 
@@ -105,12 +109,12 @@ export const ZONE_TABLE: readonly ZoneDef[] = [
 from `ZONE_TABLE` — call sites in `src/App.tsx` and the level banner do not
 change. Adding a fourth zone later is a table edit plus new boundary tests.
 
-**Implemented spawn cadence today** (for reference until P5): rows spawn every
-`max(minGap 5.5, baseGap 8 − (level−1) × gapPerLevel 1.2)` meters → 8 / 6.8 /
-5.6 m at levels 1/2/3, after an initial 6 m delay (`SPAWN_GAP` +
-`spawnGapForLevel`, `src/gameLogic.ts`; called from `src/App.tsx`
-`updateGame`). The P5 per-zone ramp above replaces this formula; until then
-the formula is the source of truth.
+**Implemented spawn cadence**: rows spawn every `spawnGapForZone(distance)`
+meters — a linear ramp between the active zone's `spawnGap.from`/`.to` across
+its start/end span (`zoneRangeAt`) — after an initial 6 m delay
+(`SPAWN_GAP.initialDelay`, `src/gameLogic.ts`; called from `src/App.tsx`
+`updateGame`). This replaces the old flat per-level formula
+(`spawnGapForLevel`, removed).
 
 ## Zone transitions
 
