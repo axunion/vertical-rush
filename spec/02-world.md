@@ -14,7 +14,8 @@ same entity ids.
 ## World concept: "Poco's Special Delivery"
 
 Status: partial — palette/theme implemented (P2); Poco's sprite sheet
-implemented (P3); cast beyond Poco and P2's two obstacles planned (P4+)
+implemented (P3); the `coin` item landed in P4; cast beyond Poco, P2's two
+obstacles, and `coin` remains planned (P5+)
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
@@ -86,7 +87,7 @@ the other lacks (a `planned` stub row is enough).
 
 ## Item cast
 
-Status: planned (phases per row)
+Status: partial — `coin` implemented (P4); the rest is planned per the phase column
 
 Same pairing rule as obstacles (`WLD-01`). Effects and spawn rules are
 normative in `SPEC-ENTITIES › ENT-03`.

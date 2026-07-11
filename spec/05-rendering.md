@@ -165,12 +165,12 @@ Status: implemented (src/render.ts drawEntity, drawPlayer)
 
 ## RND-07 — Fallback shapes
 
-Status: implemented (src/entities.ts FallbackShape, src/render.ts drawFallback) — the `FallbackShape` union currently has 3 members (`runner`/`crate`/`cart`); `coin` is a one-line addition when P4 adds the item
+Status: implemented (src/entities.ts FallbackShape, src/render.ts drawFallback) — the `FallbackShape` union has 4 members (`runner`/`crate`/`cart`/`coin`); `coin` landed in P4 (src/render.ts drawCoinShape)
 
 Canonical (target: `src/entities.ts`):
 
 ```ts
-export type FallbackShape = "runner" | "crate" | "cart";
+export type FallbackShape = "runner" | "crate" | "cart" | "coin";
 ```
 
 A small closed set of parameterized pixel-style primitive drawers (chunky
@@ -179,8 +179,8 @@ glow). Each takes the instance Box and draws inside it exactly. New entities
 reuse an existing shape unless they genuinely need a new silhouette; adding a
 shape is a code change and should stay rare. Mapping per entity:
 `SPEC-ENTITIES › ENT-02` (`runner` = poco, `crate` = crates/barrels/static
-props, `cart` = wide 2-lane objects). P4 adds a `"coin"` member (round items)
-when the `coin` item entity lands — not before, per `ENT-05`'s extension
+props, `cart` = wide 2-lane objects, `coin` = round items). P4 added the
+`"coin"` member when the `coin` item entity landed, per `ENT-05`'s extension
 contract.
 
 ## Asset layout

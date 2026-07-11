@@ -52,6 +52,14 @@
   text-shadow: 0 0 10px rgba(45, 226, 255, 0.55);
 }
 
+.coinCount {
+  color: #ffd166;
+  font-family: Menlo, "Roboto Mono", "Courier New", monospace;
+  font-size: 14px;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(255, 209, 102, 0.55);
+}
+
 .track {
   flex: 1;
   height: 6px;

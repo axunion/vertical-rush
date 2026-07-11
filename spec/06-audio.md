@@ -24,7 +24,7 @@ component cleanup (`dispose`).
 
 ## AUD-02 — SFX catalog
 
-Status: partial — 4 voices implemented (src/audio.ts createSfx); rows marked planned extend the catalog
+Status: partial — 5 voices implemented (src/audio.ts createSfx); rows marked planned extend the catalog
 
 The catalog is keyed by `SfxId`. Canonical (src/audio.ts):
 
@@ -39,7 +39,7 @@ export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
 | `levelUp` | zone change banner | current fanfare C5–E5–G5 square | implemented |
 | `clear` | reaching the castle gate | current arpeggio + added low bell (sine 523 Hz, ~1.2 s decay) | implemented (bell planned, P5) |
 | `gameOver` | crash | current sawtooth down-sweep + added white-noise burst (~0.2 s buffer noise) for the pratfall | implemented (noise planned, P5) |
-| `coin` | item collect | two-note ping E6→B6, square wave, ~0.09 s | planned (P4) |
+| `coin` | item collect | two-note ping E6→B6, square wave, ~0.09 s | implemented (P4) |
 | `shieldGet` / `shieldBreak` | effect items | warm major chord / glass pop | planned (post-P5) |
 
 `SPEC-ENTITIES` `CollisionEffect.collect.sfx` references these ids — adding an

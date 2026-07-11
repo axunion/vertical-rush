@@ -539,6 +539,8 @@ export function drawFallback(
     drawCrateShape(c, x, y, w, h, colors);
   } else if (shape === "cart") {
     drawCartShape(c, x, y, w, h, colors);
+  } else if (shape === "coin") {
+    drawCoinShape(c, x, y, w, h, colors);
   } else {
     drawRunnerShape(c, x, y, w, h, colors, animTime);
   }
@@ -580,6 +582,21 @@ function drawCartShape(
   c.fillStyle = colors.ink;
   c.fillRect(x + w * 0.12, y + h * 0.68, wheel, wheel);
   c.fillRect(x + w * 0.88 - wheel, y + h * 0.68, wheel, wheel);
+}
+
+function drawCoinShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.gold;
+  c.fillRect(x, y, w, h);
+  strokeInset(c, x, y, w, h, colors.ink);
+  c.fillStyle = colors.warmWhite;
+  c.fillRect(x + w * 0.3, y + h * 0.25, w * 0.25, h * 0.25);
 }
 
 function drawRunnerShape(
@@ -777,7 +794,9 @@ export interface FrameSim {
   bgOffset: number;
   distance: number;
   obstacles: readonly EntityInstance[];
+  items: readonly EntityInstance[];
   dust: readonly Particle[];
+  itemBurst: readonly Particle[];
   sparks: readonly Particle[];
   speedLines: readonly SpeedLine[];
   animTime: number;
@@ -834,7 +853,11 @@ export function renderFrame(
   for (const obs of sim.obstacles) {
     drawEntity(c, obs, defs[obs.defId], config.colors, sheets, sim.animTime);
   }
+  for (const item of sim.items) {
+    drawEntity(c, item, defs[item.defId], config.colors, sheets, sim.animTime);
+  }
   drawParticles(c, sim.dust);
+  drawParticles(c, sim.itemBurst);
   drawPlayer(
     c,
     player,

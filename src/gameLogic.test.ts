@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   type Box,
   calculateLevel,
+  calculateScore,
   checkCollision,
   isGameCleared,
+  PICKUP_MARGIN_RATE,
   spawnGapForLevel,
 } from "./gameLogic";
 
@@ -87,5 +89,29 @@ describe("checkCollision", () => {
   it("returns false when shrunk edges merely touch", () => {
     // Shrunk right edge of the first (90) equals shrunk left edge of the second (90).
     expect(checkCollision(box(0, 0), box(80, 0))).toBe(false);
+  });
+
+  it("accepts a more generous marginRate where the default rejects (CORE-02)", () => {
+    // Same pair as "raw boxes overlap but shrunk boxes do not" above: with the
+    // default 0.2 margin the shrunk boxes span 10..90 and 95..175 (no overlap).
+    expect(checkCollision(box(0, 0), box(85, 0))).toBe(false);
+    // PICKUP_MARGIN_RATE (0.1) shrinks less, spanning 5..95 and 90..180 (overlap).
+    expect(checkCollision(box(0, 0), box(85, 0), PICKUP_MARGIN_RATE)).toBe(
+      true,
+    );
+  });
+});
+
+describe("calculateScore", () => {
+  it("floors the distance component", () => {
+    expect(calculateScore(123.7, 0)).toBe(123);
+  });
+
+  it("adds collected item scores to the floored distance", () => {
+    expect(calculateScore(123.7, 30)).toBe(153);
+  });
+
+  it("returns 0 for a fresh run", () => {
+    expect(calculateScore(0, 0)).toBe(0);
   });
 });

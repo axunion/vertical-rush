@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  advanceItems,
   advanceObstacles,
+  COIN_TRAIL,
   ENTITY_DEFS,
   type EntityInstance,
+  ITEM_CHANCE,
   PLAYER_SIZE,
+  positionCoinTrail,
   positionObstacleRow,
+  rollsCoinTrail,
   spawnRow,
 } from "./entities";
 
@@ -151,6 +156,83 @@ describe("ENTITY_DEFS", () => {
     expect(ENTITY_DEFS["market-crate"].lanes).toBe(1);
     expect(ENTITY_DEFS["hay-cart"].size).toEqual({ w: 80, h: 32 });
     expect(ENTITY_DEFS["hay-cart"].lanes).toBe(2);
+  });
+
+  it("matches the ENT-02 source-of-truth footprint and collect effect for coin", () => {
+    expect(ENTITY_DEFS.coin.size).toEqual({ w: 12, h: 12 });
+    expect(ENTITY_DEFS.coin.lanes).toBe(1);
+    expect(ENTITY_DEFS.coin.onCollision).toEqual({
+      kind: "collect",
+      score: 10,
+      sfx: "coin",
+    });
+  });
+});
+
+describe("rollsCoinTrail", () => {
+  it("rolls true when rng is below ITEM_CHANCE", () => {
+    expect(rollsCoinTrail(() => 0)).toBe(true);
+  });
+
+  it("rolls false when rng is at or above ITEM_CHANCE", () => {
+    expect(rollsCoinTrail(() => ITEM_CHANCE)).toBe(false);
+  });
+});
+
+describe("positionCoinTrail", () => {
+  const laneCenterX = (lane: number) => 30 + lane * 100;
+
+  it("places COIN_TRAIL.count coins in the row's safe lane", () => {
+    const trail = positionCoinTrail(1, laneCenterX, 35.2);
+    expect(trail).toHaveLength(COIN_TRAIL.count);
+    expect(trail.every((c) => c.lane === 1 && c.defId === "coin")).toBe(true);
+    for (const coin of trail) {
+      expect(coin.x).toBe(laneCenterX(1) - ENTITY_DEFS.coin.size.w / 2);
+    }
+  });
+
+  it("spaces coins by COIN_TRAIL.spacingM meters, starting COIN_TRAIL.leadGapM behind the row", () => {
+    const pxPerMeter = 10;
+    const { size } = ENTITY_DEFS.coin;
+    const trail = positionCoinTrail(0, laneCenterX, pxPerMeter);
+    expect(trail[0].y).toBe(-COIN_TRAIL.leadGapM * pxPerMeter - size.h);
+    expect(trail[1].y).toBe(
+      -(COIN_TRAIL.leadGapM + COIN_TRAIL.spacingM) * pxPerMeter - size.h,
+    );
+    expect(trail[2].y).toBe(
+      -(COIN_TRAIL.leadGapM + 2 * COIN_TRAIL.spacingM) * pxPerMeter - size.h,
+    );
+  });
+});
+
+describe("advanceItems", () => {
+  const player = { x: 40, y: 200, width: 40, height: 40 };
+
+  it("scrolls items downward and reports no collection when clear", () => {
+    const items: EntityInstance[] = [
+      { defId: "coin", lane: 0, x: 0, y: 0, width: 12, height: 12 },
+    ];
+    const collected = advanceItems(items, 10, 320, player);
+    expect(collected).toEqual([]);
+    expect(items[0].y).toBe(10);
+  });
+
+  it("drops items that scrolled past the bottom of the view", () => {
+    const items: EntityInstance[] = [
+      { defId: "coin", lane: 0, x: 0, y: 310, width: 12, height: 12 },
+    ];
+    const collected = advanceItems(items, 20, 320, player);
+    expect(collected).toEqual([]);
+    expect(items).toHaveLength(0);
+  });
+
+  it("collects an item overlapping the player and removes it (ENT-INV-3: never blocks)", () => {
+    const items: EntityInstance[] = [
+      { defId: "coin", lane: 0, x: 45, y: 205, width: 12, height: 12 },
+    ];
+    const collected = advanceItems(items, 0, 320, player);
+    expect(collected).toEqual([{ score: 10, sfx: "coin" }]);
+    expect(items).toHaveLength(0);
   });
 });
 

@@ -19,7 +19,8 @@ Status: partial — see the per-invariant markers
   `src/sprites.ts`) have no UI dependencies and run under Vitest's node
   environment. Logic changes are made test-first. *(implemented for gameLogic)*
 - `CORE-INV-3` Distance is the sole clear condition; items and score never
-  gate progress. *(implemented trivially; binds P4+)*
+  gate progress. *(implemented — `isGameCleared` only ever checks distance;
+  `calculateScore` is display-only and never consulted by the clear check)*
 
 ## Phases
 
@@ -55,7 +56,8 @@ AABB overlap after shrinking **both** boxes inward by
 `COLLISION_MARGIN_RATE = 0.2` of their width/height (10% per side). This
 forgiveness factor is deliberate game feel — do not change it casually.
 
-`CORE-02` *(planned, P4)*: `checkCollision` gains an optional third parameter
+`CORE-02` *(implemented, P4: src/gameLogic.ts checkCollision,
+PICKUP_MARGIN_RATE)*: `checkCollision` gains an optional third parameter
 `marginRate = COLLISION_MARGIN_RATE` so item pickup can use a **more generous**
 margin (`SPEC-ENTITIES › ENT-04`) without a second collision path. The
 two-argument call keeps today's behavior exactly, so existing call sites and
@@ -123,16 +125,14 @@ Zone palettes live in a per-zone color block replacing today's single
 
 ## Score
 
-Status: planned (P4)
+Status: implemented (P4: src/gameLogic.ts calculateScore, src/App.tsx)
 
 `CORE-04` — `score = floor(distance) + Σ collected item scores`. Distance
 remains the sole clear condition (`CORE-INV-3`); score is display and replay
 value only.
 
-- Computed by a pure helper in `src/gameLogic.ts` (test-first), e.g.
-  `calculateScore(distance: number, collectedScore: number): number` —
-  illustrative signature; the invariant is that scoring math is pure and
-  tested, not signal-driven.
+- Computed by the pure helper `calculateScore(distance: number,
+  collectedScore: number): number` in `src/gameLogic.ts`.
 - HUD gains a coin counter next to the distance readout; result overlays show
   distance / coins / total score.
 - Best-score persistence to `localStorage` is a small post-P4 follow-up, not

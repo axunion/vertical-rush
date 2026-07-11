@@ -57,7 +57,7 @@ detailed by the referenced spec.
 |---|---|---|
 | `CORE-INV-1` | All collision decisions go through `checkCollision` in `src/gameLogic.ts`. Never reimplement hit detection elsewhere. *(implemented)* | `SPEC-CORE` |
 | `CORE-INV-2` | Pure modules (`src/gameLogic.ts`, `src/entities.ts`; later `src/sprites.ts`) never import UI dependencies (`window`, `document`, Canvas, SolidJS) and stay unit-testable in the node environment. *(implemented for gameLogic.ts and entities.ts)* | `SPEC-CORE` |
-| `CORE-INV-3` | Distance is the sole clear condition. Items and score never gate progress. *(implemented trivially — no items yet)* | `SPEC-CORE` |
+| `CORE-INV-3` | Distance is the sole clear condition. Items and score never gate progress. *(implemented — score is display-only)* | `SPEC-CORE` |
 | `ENT-INV-1` | Every spawned row leaves at least one passable lane. *(implemented via the safe-lane random walk)* | `SPEC-ENTITIES` |
 | `ENT-INV-2` | Moving obstacles never enter the current safe lane while within 1.5 player heights of the player row. *(planned — binds when movers exist)* | `SPEC-ENTITIES` |
 | `RND-INV-1` | The game is fully playable and visually coherent with zero PNG assets present; asset load failure is silent and per-sheet. *(implemented — primitives are currently the only path)* | `SPEC-RENDER` |

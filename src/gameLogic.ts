@@ -20,6 +20,9 @@ export const TARGET_DISTANCE = 500;
  */
 export const COLLISION_MARGIN_RATE = 0.2;
 
+/** Item pickup margin rate (ENT-04): more generous than COLLISION_MARGIN_RATE. */
+export const PICKUP_MARGIN_RATE = 0.1;
+
 /** Distance (m) before the first row spawns, and the per-level row-gap ramp. */
 export const SPAWN_GAP = {
   initialDelay: 6,
@@ -51,18 +54,36 @@ export function isGameCleared(distance: number, target: number): boolean {
   return distance >= target;
 }
 
-function shrink(box: Box): Box {
+/** Distance's floor plus any collected item scores (CORE-04); score is display-only, never a clear condition. */
+export function calculateScore(
+  distance: number,
+  collectedScore: number,
+): number {
+  return Math.floor(distance) + collectedScore;
+}
+
+function shrink(box: Box, marginRate: number): Box {
   return {
-    x: box.x + (box.width * COLLISION_MARGIN_RATE) / 2,
-    y: box.y + (box.height * COLLISION_MARGIN_RATE) / 2,
-    width: box.width * (1 - COLLISION_MARGIN_RATE),
-    height: box.height * (1 - COLLISION_MARGIN_RATE),
+    x: box.x + (box.width * marginRate) / 2,
+    y: box.y + (box.height * marginRate) / 2,
+    width: box.width * (1 - marginRate),
+    height: box.height * (1 - marginRate),
   };
 }
 
-export function checkCollision(player: Box, obstacle: Box): boolean {
-  const a = shrink(player);
-  const b = shrink(obstacle);
+/**
+ * AABB overlap after shrinking both boxes inward by `marginRate` of their
+ * width/height. Defaults to the obstacle margin; item pickup passes the
+ * more generous `PICKUP_MARGIN_RATE` (ENT-04) through this same path
+ * (CORE-INV-1 — no second collision path).
+ */
+export function checkCollision(
+  player: Box,
+  obstacle: Box,
+  marginRate: number = COLLISION_MARGIN_RATE,
+): boolean {
+  const a = shrink(player, marginRate);
+  const b = shrink(obstacle, marginRate);
   return (
     a.x + a.width > b.x &&
     b.x + b.width > a.x &&

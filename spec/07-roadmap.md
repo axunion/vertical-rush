@@ -105,13 +105,14 @@ and ship `public/assets/sheets/poco.png` (`RND-04` layout) at minimum; retire
 
 ## P4 — Items & collection
 
-Status: planned
+Status: implemented
 
-**Scope:** `coin` entity (`SPEC-ENTITIES › ENT-02`), `SPAWN_TABLE` with
-`itemChance` 0.6 + the coin-trail rule (`ENT-03`), pickup margin parameter on
-`checkCollision` (`SPEC-CORE › CORE-02`, test-first), pure score helper
-(`CORE-04`, test-first), `coin` SFX (`SPEC-AUDIO › AUD-02`), gold collect
-particles, coin counter in the HUD and results.
+**Scope:** `coin` entity (`SPEC-ENTITIES › ENT-02`), the `itemChance` 0.6
+coin-trail rule (`ENT-03`) via flat `ITEM_CHANCE`/`COIN_TRAIL` constants (the
+zone-keyed `SPAWN_TABLE` itself waits on P5's table-driven zones), pickup
+margin parameter on `checkCollision` (`SPEC-CORE › CORE-02`, test-first), pure
+score helper (`CORE-04`, test-first), `coin` SFX (`SPEC-AUDIO › AUD-02`), gold
+collect particles, coin counter in the HUD and results.
 
 **Completion criteria:**
 - Collecting a coin raises score and never interrupts the run; crash path

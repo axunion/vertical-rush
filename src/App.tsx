@@ -3,16 +3,21 @@ import { createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
 import styles from "./App.module.css";
 import { createSfx } from "./audio";
 import {
+  advanceItems,
   advanceObstacles,
+  type CollectedItem,
   ENTITY_DEFS,
   type EntityInstance,
   PLAYER_SIZE,
+  positionCoinTrail,
   positionObstacleRow,
+  rollsCoinTrail,
   spawnRow,
 } from "./entities";
 import {
   type Box,
   calculateLevel,
+  calculateScore,
   isGameCleared,
   type LevelInfo,
   SPAWN_GAP,
@@ -71,6 +76,14 @@ const GAME_CONFIG = {
       size: [1, 2],
       gravity: 350,
     },
+    itemBurst: {
+      count: 10,
+      speed: [30, 90],
+      lift: 15,
+      life: [0.25, 0.4],
+      size: [1, 2],
+      gravity: 0,
+    },
   },
   speedLines: {
     count: 12,
@@ -104,6 +117,8 @@ export default function App() {
   const [phase, setPhase] = createSignal<GamePhase>("ready");
   const [level, setLevel] = createSignal(1);
   const [distance, setDistance] = createSignal(0);
+  const [coins, setCoins] = createSignal(0);
+  const [collectedScore, setCollectedScore] = createSignal(0);
 
   let rootEl!: HTMLDivElement;
   let canvasEl!: HTMLCanvasElement;
@@ -141,7 +156,9 @@ export default function App() {
     playerX: 0,
     animTime: 0,
     obstacles: [] as EntityInstance[],
+    items: [] as EntityInstance[],
     dust: [] as Particle[],
+    itemBurst: [] as Particle[],
     sparks: [] as Particle[],
     speedLines: [] as SpeedLine[],
     nextSpawn: SPAWN_GAP.initialDelay,
@@ -191,7 +208,9 @@ export default function App() {
     sim.playerX = laneCenterX(sim.playerLane);
     sim.animTime = 0;
     sim.obstacles = [];
+    sim.items = [];
     sim.dust = [];
+    sim.itemBurst = [];
     sim.sparks = [];
     sim.nextSpawn = SPAWN_GAP.initialDelay;
     sim.safeLane = sim.playerLane;
@@ -210,6 +229,8 @@ export default function App() {
     resetSim();
     setLevel(1);
     setDistance(0);
+    setCoins(0);
+    setCollectedScore(0);
     setPhase("running");
   };
 
@@ -256,6 +277,27 @@ export default function App() {
     sim.safeLane = result.safeLane;
     sim.obstacles.push(
       ...positionObstacleRow(result.blockedLanes, laneCenterX),
+    );
+    if (rollsCoinTrail(Math.random)) {
+      sim.items.push(
+        ...positionCoinTrail(sim.safeLane, laneCenterX, pxPerUnit()),
+      );
+    }
+  };
+
+  const collectItems = (items: CollectedItem[], at: Box) => {
+    for (const item of items) {
+      sfx[item.sfx]();
+      emitSparks(
+        sim.itemBurst,
+        at,
+        GAME_CONFIG.particles.itemBurst,
+        GAME_CONFIG.colors.gold,
+      );
+    }
+    setCoins((n) => n + items.length);
+    setCollectedScore(
+      (s) => s + items.reduce((sum, item) => sum + item.score, 0),
     );
   };
 
@@ -312,6 +354,11 @@ export default function App() {
       return;
     }
 
+    const collected = advanceItems(sim.items, scroll, view.h, player);
+    if (collected.length > 0) {
+      collectItems(collected, player);
+    }
+
     sim.dustCarry +=
       GAME_CONFIG.particles.dustPerSecond * dt * (0.6 + info.level * 0.2);
     while (sim.dustCarry >= 1) {
@@ -335,6 +382,7 @@ export default function App() {
       }
     }
     updateParticles(sim.dust, dt);
+    updateParticles(sim.itemBurst, dt, GAME_CONFIG.particles.itemBurst.gravity);
     updateParticles(sim.sparks, dt, GAME_CONFIG.particles.spark.gravity);
     sim.shakeTime = Math.max(0, sim.shakeTime - dt);
     sim.bannerTime = Math.max(0, sim.bannerTime - dt);
@@ -445,6 +493,13 @@ export default function App() {
     sfx.dispose();
   });
 
+  /** Shared coins/score line for the cleared/gameover result overlays (CORE-04). */
+  const scoreLine = () => (
+    <>
+      コイン {coins()}枚 / スコア {calculateScore(distance(), collectedScore())}
+    </>
+  );
+
   const overlay = (
     title: JSX.Element,
     titleClass: string,
@@ -466,6 +521,7 @@ export default function App() {
         <canvas class={styles.canvas} ref={canvasEl} />
         <div class={styles.hud}>
           <span class={styles.distance}>{distance()}m</span>
+          <span class={styles.coinCount}>🪙{coins()}</span>
           <div class={styles.track}>
             <div
               class={styles.trackFill}
@@ -496,7 +552,11 @@ export default function App() {
           {overlay(
             "Goal!",
             styles.titleClear,
-            `${GAME_CONFIG.targetDistance}m 完走！ お見事！`,
+            <>
+              {GAME_CONFIG.targetDistance}m 完走！ お見事！
+              <br />
+              {scoreLine()}
+            </>,
             "もう一度走る",
           )}
         </Show>
@@ -504,7 +564,11 @@ export default function App() {
           {overlay(
             "Game Over",
             styles.titleOver,
-            `${distance()}m 地点でクラッシュ…`,
+            <>
+              {distance()}m 地点でクラッシュ…
+              <br />
+              {scoreLine()}
+            </>,
             "リトライ",
           )}
         </Show>

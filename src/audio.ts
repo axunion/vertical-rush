@@ -56,6 +56,10 @@ export function createSfx() {
     gameOver() {
       tone(320, 0.7, "sawtooth", { to: 55, volume: 0.09 });
     },
+    coin() {
+      tone(1318.51, 0.05, "square", { volume: 0.05 });
+      tone(1975.53, 0.05, "square", { at: 0.04, volume: 0.05 });
+    },
     dispose() {
       if (audio && audio.state !== "closed") {
         void audio.close();
