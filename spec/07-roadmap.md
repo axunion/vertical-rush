@@ -87,7 +87,7 @@ first**, then the triplet; manual screenshot review at 390×844.
 
 ## P3 — Sprite-sheet pipeline
 
-Status: planned
+Status: implemented
 
 **Scope:** `src/sprites.ts` manifest + `frameAt` (unit-tested for loop/clamp);
 per-sheet loader; dispatcher prefers sprites over fallback (`RND-06`); author

@@ -13,8 +13,8 @@ same entity ids.
 
 ## World concept: "Poco's Special Delivery"
 
-Status: partial — palette/theme implemented (P2); cast beyond Poco and P2's
-two obstacles, plus real sprite sheets, planned (P3+)
+Status: partial — palette/theme implemented (P2); Poco's sprite sheet
+implemented (P3); cast beyond Poco and P2's two obstacles planned (P4+)
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
@@ -41,8 +41,9 @@ for free: run forward, don't touch anything, the goal is a gate.
 
 ## Protagonist: Poco (`poco`)
 
-Status: partial — fallback look implemented (P2, src/render.ts drawFallback
-`"runner"`); sprite sheet + animation states planned (P3)
+Status: implemented — fallback look (P2, src/render.ts drawFallback
+`"runner"`) and sprite sheet + animation states (P3, public/assets/sheets/poco.png,
+src/sprites.ts, src/render.ts drawPlayer)
 
 - **Silhouette:** chibi, 2 heads tall, carrying a square cake box overhead —
   the box extends the silhouette upward, reads instantly at mobile size, and
@@ -58,8 +59,8 @@ Status: partial — fallback look implemented (P2, src/render.ts drawFallback
 | state | frames | fps | loop | notes |
 |---|---|---|---|---|
 | `idle` | 2 | 4 | yes | ready-screen breathing |
-| `run` | 4 | 10 (scaled by zone speed) | yes | replaces the current sin-bob body |
-| `switch` | 2 | held during lane ease | no | body lean + scarf whip; mirror horizontally for the other direction |
+| `run` | 4 | 10, sped up by the current zone's level (same `0.75 + level*0.25` curve as the fallback sin-bob) | yes | replaces the current sin-bob body |
+| `switch` | 2 | 8 | no | body lean + scarf whip; fixed `GAME_CONFIG.player.switchDuration` hold (0.22s) approximating the lane-ease travel time; mirrored horizontally for the other direction |
 | `crash` | 3 | 12 | no | tumble; the cake box becomes a particle |
 | `victory` | 2 | 6 | yes | box held up, hop — shown on the clear overlay |
 

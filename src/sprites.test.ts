@@ -1,0 +1,64 @@
+import { describe, expect, it } from "vitest";
+import { type AnimationDef, frameAt, SPRITE_SHEETS } from "./sprites";
+
+const threeFrames: AnimationDef = {
+  frames: [
+    { x: 0, y: 0, w: 24, h: 32 },
+    { x: 24, y: 0, w: 24, h: 32 },
+    { x: 48, y: 0, w: 24, h: 32 },
+  ],
+  fps: 2,
+  loop: true,
+};
+
+describe("frameAt", () => {
+  it("picks frame 0 at time 0", () => {
+    expect(frameAt(threeFrames, 0)).toEqual(threeFrames.frames[0]);
+  });
+
+  it("advances one frame per 1/fps seconds", () => {
+    expect(frameAt(threeFrames, 0.4)).toEqual(threeFrames.frames[0]);
+    expect(frameAt(threeFrames, 0.5)).toEqual(threeFrames.frames[1]);
+    expect(frameAt(threeFrames, 1.0)).toEqual(threeFrames.frames[2]);
+  });
+
+  it("wraps around to frame 0 past the end when looping", () => {
+    expect(frameAt(threeFrames, 1.5)).toEqual(threeFrames.frames[0]);
+    expect(frameAt(threeFrames, 3.5)).toEqual(threeFrames.frames[1]);
+  });
+
+  it("clamps to the last frame past the end when not looping", () => {
+    const clamped: AnimationDef = { ...threeFrames, loop: false };
+    expect(frameAt(clamped, 1.5)).toEqual(clamped.frames[2]);
+    expect(frameAt(clamped, 100)).toEqual(clamped.frames[2]);
+  });
+
+  it("never returns an out-of-range index for negative time", () => {
+    expect(frameAt(threeFrames, -1)).toEqual(threeFrames.frames[0]);
+  });
+});
+
+describe("SPRITE_SHEETS", () => {
+  it("defines the poco sheet with all five animation states on the RND-04 grid", () => {
+    const poco = SPRITE_SHEETS.poco;
+    expect(poco.src).toBe("/assets/sheets/poco.png");
+    expect(Object.keys(poco.animations).sort()).toEqual([
+      "crash",
+      "idle",
+      "run",
+      "switch",
+      "victory",
+    ]);
+    expect(poco.animations.idle.frames).toHaveLength(2);
+    expect(poco.animations.run.frames).toHaveLength(4);
+    expect(poco.animations.switch.frames).toHaveLength(2);
+    expect(poco.animations.crash.frames).toHaveLength(3);
+    expect(poco.animations.victory.frames).toHaveLength(2);
+    for (const anim of Object.values(poco.animations)) {
+      for (const frame of anim.frames) {
+        expect(frame.w).toBe(24);
+        expect(frame.h).toBe(32);
+      }
+    }
+  });
+});

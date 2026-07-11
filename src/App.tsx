@@ -14,6 +14,7 @@ import {
   type Box,
   calculateLevel,
   isGameCleared,
+  type LevelInfo,
   SPAWN_GAP,
   spawnGapForLevel,
   TARGET_DISTANCE,
@@ -27,15 +28,19 @@ import {
   type DisplayFit,
   emitDust,
   emitSparks,
+  loadSpriteSheets,
   type OffscreenSurface,
   type Particle,
+  type PlayerAnimState,
   paintLetterbox,
   renderFrame,
+  type SheetImages,
   type SpeedLine,
   sizeDisplayCanvas,
   updateParticles,
   type View,
 } from "./render";
+import { SPRITE_SHEETS } from "./sprites";
 
 const GAME_CONFIG = {
   targetDistance: TARGET_DISTANCE,
@@ -46,6 +51,8 @@ const GAME_CONFIG = {
   speedRatio: 0.11,
   playerYRatio: 0.78,
   laneEaseRate: 10,
+  /** How long the "switch" sprite animation plays after a lane change before reverting to "run". */
+  playerSwitchDuration: 0.22,
   spawn: { doubleChance: 0.45 },
   particles: {
     dustMax: 70,
@@ -104,6 +111,9 @@ export default function App() {
   let rafId = 0;
   let offscreen!: OffscreenSurface;
   let displayFit!: DisplayFit;
+  // Populated once loadSpriteSheets resolves; drawPlayer/drawEntity fall back to
+  // primitive shapes for any id still missing here (RND-INV-1).
+  let sheets: SheetImages = {};
 
   const sfx = createSfx();
 
@@ -141,12 +151,19 @@ export default function App() {
     prevLevel: 1,
     bannerTime: 0,
     dustCarry: 0,
+    playerAnimState: "idle" as PlayerAnimState,
+    playerAnimStateTime: 0,
+    playerFacing: 1 as 1 | -1,
+    switchHoldTime: 0,
   };
 
   const laneCenterX = (lane: number) =>
     view.roadPad + view.laneWidth * (lane + 0.5);
 
   const pxPerUnit = () => view.h * GAME_CONFIG.speedRatio;
+
+  /** Shared level->animation-speed curve for both the fallback sin-bob and the sprite run cycle. */
+  const animSpeedFactor = (level: number) => 0.75 + level * 0.25;
 
   const playerBox = (): Box => ({
     x: sim.playerX - PLAYER_SIZE.w / 2,
@@ -182,6 +199,10 @@ export default function App() {
     sim.prevLevel = 1;
     sim.bannerTime = 0;
     sim.dustCarry = 0;
+    sim.playerAnimState = "idle";
+    sim.playerAnimStateTime = 0;
+    sim.playerFacing = 1;
+    sim.switchHoldTime = 0;
   };
 
   const start = () => {
@@ -199,6 +220,8 @@ export default function App() {
     );
     if (next !== sim.playerLane) {
       sim.playerLane = next;
+      sim.playerFacing = dir;
+      sim.switchHoldTime = GAME_CONFIG.playerSwitchDuration;
       sfx.dash();
     }
   };
@@ -256,7 +279,7 @@ export default function App() {
     );
     const scroll = info.speed * pxPerUnit() * dt;
     sim.bgOffset += scroll;
-    sim.animTime += dt * (0.75 + info.level * 0.25);
+    sim.animTime += dt * animSpeedFactor(info.level);
 
     if (info.level !== sim.prevLevel) {
       sim.prevLevel = info.level;
@@ -303,8 +326,8 @@ export default function App() {
     }
   };
 
-  const updateAmbient = (dt: number) => {
-    const running = phase() === "running";
+  const updateAmbient = (dt: number, runningLevel: LevelInfo | null) => {
+    const running = runningLevel !== null;
     if (!running) {
       sim.bgOffset += view.h * GAME_CONFIG.idle.scrollRatio * dt;
       if (phase() === "ready") {
@@ -316,7 +339,7 @@ export default function App() {
     sim.shakeTime = Math.max(0, sim.shakeTime - dt);
     sim.bannerTime = Math.max(0, sim.bannerTime - dt);
     const lineSpeed = running
-      ? calculateLevel(sim.distance).speed * GAME_CONFIG.speedLines.speedFactor
+      ? runningLevel.speed * GAME_CONFIG.speedLines.speedFactor
       : GAME_CONFIG.speedLines.idleSpeed;
     advanceSpeedLines(
       sim.speedLines,
@@ -324,6 +347,37 @@ export default function App() {
       lineSpeed * pxPerUnit() * dt,
       GAME_CONFIG.speedLines.length,
     );
+  };
+
+  /** Picks Poco's sprite animation state from game phase + a post-lane-change hold window. */
+  const desiredPlayerAnimState = (): PlayerAnimState => {
+    if (phase() === "gameover") {
+      return "crash";
+    }
+    if (phase() === "cleared") {
+      return "victory";
+    }
+    if (sim.switchHoldTime > 0) {
+      return "switch";
+    }
+    return phase() === "running" ? "run" : "idle";
+  };
+
+  /** Resets the state-local frame timer whenever the state changes, so one-shot animations (switch/crash) replay from frame 0. */
+  const updatePlayerAnim = (dt: number, runningLevel: LevelInfo | null) => {
+    sim.switchHoldTime = Math.max(0, sim.switchHoldTime - dt);
+    const next = desiredPlayerAnimState();
+    // "run" speeds up with the zone (SPEC-WORLD Poco animation table), matching the fallback sin-bob's curve.
+    const animDt =
+      next === "run" && runningLevel
+        ? dt * animSpeedFactor(runningLevel.level)
+        : dt;
+    if (next !== sim.playerAnimState) {
+      sim.playerAnimState = next;
+      sim.playerAnimStateTime = 0;
+    } else {
+      sim.playerAnimStateTime += animDt;
+    }
   };
 
   const render = () => {
@@ -334,6 +388,7 @@ export default function App() {
       level: level(),
       config: GAME_CONFIG,
       defs: ENTITY_DEFS,
+      sheets,
     });
     blitFrame(ctx, offscreen.canvas, displayFit);
   };
@@ -360,16 +415,23 @@ export default function App() {
     );
     resize();
     resetSim();
+    // Fire-and-forget: the game is playable via fallback shapes before/without this resolving (RND-INV-1).
+    loadSpriteSheets(SPRITE_SHEETS).then((loaded) => {
+      sheets = loaded;
+    });
     window.addEventListener("resize", resize);
     window.addEventListener("keydown", handleKeyDown);
     let last = performance.now();
     const frame = (ts: number) => {
       const dt = Math.min((ts - last) / 1000, 0.05);
       last = ts;
-      if (phase() === "running") {
+      const running = phase() === "running";
+      if (running) {
         updateGame(dt);
       }
-      updateAmbient(dt);
+      const runningLevel = running ? calculateLevel(sim.distance) : null;
+      updateAmbient(dt, runningLevel);
+      updatePlayerAnim(dt, runningLevel);
       render();
       rafId = requestAnimationFrame(frame);
     };

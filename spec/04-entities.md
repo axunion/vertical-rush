@@ -27,9 +27,9 @@ Status: partial — see the per-invariant markers
 
 ## Target module layout
 
-Status: partial — modules and the canonical logical-px `EntityDef.size`
-schema are implemented (P1 extraction, P2 canonical schema); `SPAWN_TABLE`
-and `src/sprites.ts` arrive in later phases (P4/P3 respectively)
+Status: partial — modules, the canonical logical-px `EntityDef.size` schema,
+and `src/sprites.ts` are implemented (P1 extraction, P2 canonical schema, P3
+sprite manifest); `SPAWN_TABLE` arrives in P4
 
 | Module | Responsibility | Purity |
 |---|---|---|

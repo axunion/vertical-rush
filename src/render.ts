@@ -1,5 +1,11 @@
 import type { EntityDef, EntityInstance, FallbackShape } from "./entities";
 import type { Box } from "./gameLogic";
+import {
+  type FrameRect,
+  frameAt,
+  SPRITE_SHEETS,
+  type SpriteSheetDef,
+} from "./sprites";
 
 /** Fixed logical-pixel geometry (RND-01) — computed once, never touched by resize. */
 export interface View {
@@ -153,6 +159,35 @@ export function createOffscreenCanvas(
   }
   ctx.imageSmoothingEnabled = false;
   return { canvas, ctx };
+}
+
+/** Sheet id -> loaded image, or null if that sheet failed to load or hasn't resolved yet. */
+export type SheetImages = Record<string, HTMLImageElement | null>;
+
+/** Resolves to null on load failure — never throws — so a missing PNG can't break the game (RND-INV-1). */
+function loadSpriteSheet(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+/** Loads every sheet in the manifest; per-sheet failures resolve to null instead of rejecting the batch. */
+export function loadSpriteSheets(
+  defs: Record<string, SpriteSheetDef>,
+): Promise<SheetImages> {
+  const ids = Object.keys(defs);
+  return Promise.all(ids.map((id) => loadSpriteSheet(defs[id].src))).then(
+    (images) => {
+      const sheets: SheetImages = {};
+      ids.forEach((id, i) => {
+        sheets[id] = images[i];
+      });
+      return sheets;
+    },
+  );
 }
 
 /**
@@ -481,6 +516,16 @@ export function drawGoalLine(
   c.fillRect(view.roadPad, y, view.w - view.roadPad * 2, GOAL_CHECKER_CELL * 2);
 }
 
+/** Rounds a logical Box to integer pixel coordinates for crisp, un-antialiased canvas draws. */
+function roundBox(box: Box): { x: number; y: number; w: number; h: number } {
+  return {
+    x: Math.round(box.x),
+    y: Math.round(box.y),
+    w: Math.round(box.width),
+    h: Math.round(box.height),
+  };
+}
+
 /** Chunky pixel-shape drawers (RND-07): flat fills, 1px ink outline, no gradients or glow. */
 export function drawFallback(
   c: CanvasRenderingContext2D,
@@ -489,10 +534,7 @@ export function drawFallback(
   colors: RenderColors,
   animTime = 0,
 ): void {
-  const x = Math.round(box.x);
-  const y = Math.round(box.y);
-  const w = Math.round(box.width);
-  const h = Math.round(box.height);
+  const { x, y, w, h } = roundBox(box);
   if (shape === "crate") {
     drawCrateShape(c, x, y, w, h, colors);
   } else if (shape === "cart") {
@@ -582,14 +624,109 @@ function drawRunnerShape(
   c.fillRect(x + w * 0.44, y, w * 0.12, h * 0.2);
 }
 
+/** Resolves the sheet + current frame to draw, or null if the sheet/animation isn't available (RND-06 shared mechanism). */
+function resolveSpriteFrame(
+  sheetDef: SpriteSheetDef | undefined,
+  sheet: HTMLImageElement | null | undefined,
+  animationId: string,
+  timeSec: number,
+): { sheet: HTMLImageElement; frame: FrameRect } | null {
+  const anim = sheetDef?.animations[animationId];
+  return sheet && anim ? { sheet, frame: frameAt(anim, timeSec) } : null;
+}
+
+/** Draws the current sprite frame if `def.sprite` names a loaded sheet + animation, else the fallback shape (RND-06). */
 export function drawEntity(
   c: CanvasRenderingContext2D,
   instance: EntityInstance,
   def: EntityDef,
   colors: RenderColors,
+  sheets: SheetImages,
+  timeSec: number,
 ): void {
-  // def.sprite is always null until P3's sheet manifest lands; fallback-only for now.
+  const resolved = def.sprite
+    ? resolveSpriteFrame(
+        SPRITE_SHEETS[def.sprite.sheet],
+        sheets[def.sprite.sheet],
+        def.sprite.animation,
+        timeSec,
+      )
+    : null;
+  if (resolved) {
+    const { x, y, w, h } = roundBox(instance);
+    c.drawImage(
+      resolved.sheet,
+      resolved.frame.x,
+      resolved.frame.y,
+      resolved.frame.w,
+      resolved.frame.h,
+      x,
+      y,
+      w,
+      h,
+    );
+    return;
+  }
   drawFallback(c, def.fallback, instance, colors);
+}
+
+export type PlayerAnimState = "idle" | "run" | "switch" | "crash" | "victory";
+
+/**
+ * Draws Poco from the sprite sheet when loaded, mirroring horizontally for
+ * `facing === -1` (the sheet only draws the right-facing switch lean);
+ * falls back to the parameterized runner shape otherwise (RND-INV-1).
+ */
+export function drawPlayer(
+  c: CanvasRenderingContext2D,
+  box: Box,
+  colors: RenderColors,
+  animState: PlayerAnimState,
+  animTime: number,
+  animStateTime: number,
+  sheet: HTMLImageElement | null,
+  facing: 1 | -1,
+): void {
+  const resolved = resolveSpriteFrame(
+    SPRITE_SHEETS.poco,
+    sheet,
+    animState,
+    animStateTime,
+  );
+  if (resolved) {
+    const { x, y, w, h } = roundBox(box);
+    if (facing === -1) {
+      c.save();
+      c.translate(x + w, y);
+      c.scale(-1, 1);
+      c.drawImage(
+        resolved.sheet,
+        resolved.frame.x,
+        resolved.frame.y,
+        resolved.frame.w,
+        resolved.frame.h,
+        0,
+        0,
+        w,
+        h,
+      );
+      c.restore();
+    } else {
+      c.drawImage(
+        resolved.sheet,
+        resolved.frame.x,
+        resolved.frame.y,
+        resolved.frame.w,
+        resolved.frame.h,
+        x,
+        y,
+        w,
+        h,
+      );
+    }
+    return;
+  }
+  drawFallback(c, "runner", box, colors, animTime);
 }
 
 export function drawParticles(
@@ -646,6 +783,10 @@ export interface FrameSim {
   animTime: number;
   bannerTime: number;
   shakeTime: number;
+  playerAnimState: PlayerAnimState;
+  /** Elapsed time since `playerAnimState` last changed — drives sprite frameAt for non-looping states. */
+  playerAnimStateTime: number;
+  playerFacing: 1 | -1;
 }
 
 export interface FrameConfig {
@@ -667,12 +808,14 @@ export interface RenderFrameArgs {
   config: FrameConfig;
   /** Registry to resolve each obstacle's `EntityDef` by `defId` (injected, not imported, so this stays testable against any registry — entity data, owned by entities.ts, not a GAME_CONFIG tunable). */
   defs: Record<string, EntityDef>;
+  /** Loaded sprite sheet images, keyed by sheet id; missing/failed sheets are `null` (RND-INV-1). */
+  sheets: SheetImages;
 }
 
 /** Draws one full frame onto the fixed logical canvas, in pipeline order (road -> entities -> fx -> banner). */
 export function renderFrame(
   c: CanvasRenderingContext2D,
-  { view, sim, player, level, config, defs }: RenderFrameArgs,
+  { view, sim, player, level, config, defs, sheets }: RenderFrameArgs,
 ): void {
   const remainingGoalPx =
     (config.targetDistance - sim.distance) * (view.h * config.speedRatio);
@@ -689,10 +832,19 @@ export function renderFrame(
   drawSpeedLines(c, sim.speedLines, config.colors);
   drawGoalLine(c, view, remainingGoalPx, config.playerYRatio, config.colors);
   for (const obs of sim.obstacles) {
-    drawEntity(c, obs, defs[obs.defId], config.colors);
+    drawEntity(c, obs, defs[obs.defId], config.colors, sheets, sim.animTime);
   }
   drawParticles(c, sim.dust);
-  drawFallback(c, "runner", player, config.colors, sim.animTime);
+  drawPlayer(
+    c,
+    player,
+    config.colors,
+    sim.playerAnimState,
+    sim.animTime,
+    sim.playerAnimStateTime,
+    sheets.poco ?? null,
+    sim.playerFacing,
+  );
   drawParticles(c, sim.sparks);
   drawBanner(
     c,

@@ -1,7 +1,7 @@
 ---
 id: SPEC-RENDER
 title: Rendering (Pixel Pipeline, Sprites, Fallback)
-status: partial
+status: implemented
 code: [src/render.ts, src/sprites.ts, src/App.tsx]
 ---
 
@@ -19,9 +19,11 @@ Status: implemented — see the marker on the invariant
   `Image` `onerror`/`onload` resolving to `null` on failure, never thrown);
   tests and CI never require binary assets; a fallback drawing renders the
   **same logical footprint (Box)** as its sprite so collision feel is
-  identical either way. *(implemented today in the degenerate sense — no
-  sprite loader exists yet, so fallback primitives are the only path; P3's
-  `src/sprites.ts` per-sheet loader implements the resolve-to-null pattern)*
+  identical either way. *(implemented: `src/render.ts` `loadSpriteSheets`
+  resolves each sheet to `null` on `onerror`, never throws; `drawEntity`/
+  `drawPlayer` fall back to `drawFallback`'s primitive shapes whenever a sheet
+  or animation is missing — verified by moving `public/assets/sheets/` away
+  entirely)*
 
 ## Current pipeline (for reference)
 
@@ -73,7 +75,10 @@ Status: implemented (src/render.ts computeDisplayFit/sizeDisplayCanvas/blitFrame
 
 ## RND-04 — Sprite-sheet manifest
 
-Status: planned (P3)
+Status: implemented (src/sprites.ts SPRITE_SHEETS, frameAt) — only the `poco`
+sheet is authored so far, matching the roadmap's "at minimum" P3 scope; the
+`entities`/`town` sheets below remain illustrative until an `EntityDef` or
+background painter actually references them
 
 Canonical (target: `src/sprites.ts`):
 
@@ -113,10 +118,12 @@ implementer cannot look inside a PNG, and the shape is a strict subset of
 Aseprite's JSON `frames` export, so a converter is mechanical if authoring
 tools enter the picture later.
 
-Illustrative `poco.png` layout (24×32 frames on a 96×160 sheet, one animation
-per row, states from `SPEC-WORLD`): row 0 `idle`(2), row 1 `run`(4),
-row 2 `switch`(2, facing right — mirror via negative-scale draw for left),
-row 3 `crash`(3), row 4 `victory`(2).
+`poco.png` layout (24×32 frames on a 96×160 sheet, one animation per row,
+states from `SPEC-WORLD`) — implemented exactly as authored: row 0 `idle`(2),
+row 1 `run`(4), row 2 `switch`(2, facing right — mirrored via a negative-scale
+`drawImage` for left, `src/render.ts` `drawPlayer`), row 3 `crash`(3), row 4
+`victory`(2). The PNG itself reuses the fallback runner's palette and
+proportions so the sprite and fallback read as the same character.
 
 ## RND-05 — Player key color (e2e harness coupling)
 
@@ -136,12 +143,21 @@ named contract:
 
 ## RND-06 — Draw dispatcher and background painters
 
-Status: partial — implemented (src/render.ts drawEntity, P2 dispatcher with fallback shapes); sprite path planned (P3)
+Status: implemented (src/render.ts drawEntity, drawPlayer)
 
-- One entry point per entity: `drawEntity(ctx, instance, def, sheets, timeSec)`.
-  If `def.sprite` is set and its sheet image loaded → draw the current
-  `frameAt` frame; else → the fallback drawer for `def.fallback`. This
-  replaces the bespoke `drawObstacles` / `drawPlayer` pair.
+- One entry point per entity: `drawEntity(ctx, instance, def, colors, sheets,
+  timeSec)` (the actual signature keeps `colors` alongside `sheets`/`timeSec`
+  since the fallback branch still needs the palette). If `def.sprite` is set
+  and its sheet image loaded and the named animation exists → draw the
+  current `frameAt` frame; else → the fallback drawer for `def.fallback`.
+  Today every `ENTITY_DEFS` row has `sprite: null`, so this path is exercised
+  by tests but not yet visible in play — it activates automatically once an
+  obstacle/item def gains a `sprite` reference.
+- The player is not an entity (no `EntityDef`/category, per `src/entities.ts`)
+  so it has its own dispatcher, `drawPlayer(ctx, box, colors, animState,
+  animTime, animStateTime, sheet, facing)`: draws the `poco` sheet's current
+  frame for the given animation state, mirrored for `facing === -1`, else the
+  `"runner"` fallback shape.
 - Scenery is **not** entities: cobblestone road, curb tiles, lane markers, the
   castle-gate goal, zone landmark props, and particles remain named painter
   functions in `src/render.ts` (`SPEC-WORLD › WLD-04`). Forcing scenery into
@@ -169,21 +185,22 @@ contract.
 
 ## Asset layout
 
-Status: planned (P3)
+Status: partial — `poco.png` implemented; `entities.png`/`town.png` remain
+planned (unscheduled — no `EntityDef` or background painter references a
+sheet yet)
 
 ```
-public/assets/sheets/poco.png       # player animations (RND-04 layout)
-public/assets/sheets/entities.png   # obstacles + items, one sheet
-public/assets/sheets/town.png       # background tiles: cobbles, curbs, gate, props
+public/assets/sheets/poco.png       # player animations (RND-04 layout) — implemented
+public/assets/sheets/entities.png   # obstacles + items, one sheet — planned
+public/assets/sheets/town.png       # background tiles: cobbles, curbs, gate, props — planned
 ```
 
 - Manifests (`SPRITE_SHEETS`) live in `src/sprites.ts` and are bundled; only
   PNGs live under `public/`.
-- Loading: a per-sheet promise resolving to `null` on error (`Image`
-  `onload`/`onerror`, the same shape as the old `loadImage` helper this
-  section's loader replaces); remember Vite serves 200 text/html for missing
-  `/assets/*` (SPA fallback), so failure detection must come from the `Image`
-  element, never HTTP status.
+- Loading: `src/render.ts` `loadSpriteSheets` builds a per-sheet promise
+  resolving to `null` on error (`Image` `onload`/`onerror`); remember Vite
+  serves 200 text/html for missing `/assets/*` (SPA fallback), so failure
+  detection must come from the `Image` element, never HTTP status.
 - The legacy `GAME_CONFIG.assets` two-key object (`player.png`,
   `obstacle.png`) and its `loadImage`/`loadImages` helpers were removed in
   P2, ahead of this section's own scope: the new `drawEntity`/`drawFallback`

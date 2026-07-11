@@ -85,11 +85,14 @@ staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
   `PLAYER_SIZE`, pure spawn-row generation with an injected `rng`, and
   obstacle-array helpers (`advanceObstacles`, `positionObstacleRow`). No UI
   dependencies; covered by `src/entities.test.ts`; change logic test-first.
+- `src/sprites.ts` — the sprite-sheet manifest (`SPRITE_SHEETS`) and the pure
+  frame picker `frameAt`. No UI dependencies; covered by
+  `src/sprites.test.ts`; change logic test-first.
 - `src/render.ts` — the fixed 180×320 offscreen/display canvas pipeline
   (`computeDisplayFit`, `sizeDisplayCanvas`, `createOffscreenCanvas`,
-  `blitFrame`), the draw dispatcher (`drawEntity`/`drawFallback`), image
-  loading, and the particle/speed-line system. Canvas/DOM allowed, no
-  SolidJS.
+  `blitFrame`), the draw dispatcher (`drawEntity`/`drawPlayer`/`drawFallback`),
+  the per-sheet sprite loader (`loadSpriteSheets`), and the particle/speed-line
+  system. Canvas/DOM allowed, no SolidJS.
 - `src/audio.ts` — `createSfx` (Web Audio synth voices) and the `SfxId`
   catalog.
 - `src/App.tsx` — orchestration only: game loop, input, phase signals,
