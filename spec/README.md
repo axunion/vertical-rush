@@ -8,8 +8,9 @@ code: []
 # vertical-rush Specifications
 
 This directory is the **design source of truth** for vertical-rush. It documents
-both the game as it exists today and the planned redesign toward a pixel-art
-fantasy town runner. Specs are written primarily for AI implementers: every
+both the game as it exists today (the pixel-art fantasy town runner, P0–P5)
+and the planned work: the P6 short-run casual retune and the P7/P8 drop-in
+image theming contract. Specs are written primarily for AI implementers: every
 section states whether it describes reality or intent, values are given as
 copyable tables and type definitions, and environment gotchas are restated
 where they constrain a design.
@@ -24,7 +25,7 @@ where they constrain a design.
 | [04-entities.md](04-entities.md) | `SPEC-ENTITIES` | Entity registry, spawn tables, item/collection system, target module layout |
 | [05-rendering.md](05-rendering.md) | `SPEC-RENDER` | Pixel-art pipeline, sprite-sheet manifests, fallback contract, assets |
 | [06-audio.md](06-audio.md) | `SPEC-AUDIO` | SFX catalog, chiptune BGM direction, audio unlock rule |
-| [07-roadmap.md](07-roadmap.md) | `SPEC-ROADMAP` | Implementation phases P1–P5 with completion criteria and verification |
+| [07-roadmap.md](07-roadmap.md) | `SPEC-ROADMAP` | Completed phases P0–P5 (summaries) and planned phases P6–P8 with completion criteria and verification |
 
 Recommended reading order for an implementer starting a roadmap phase:
 `07-roadmap.md` (find your phase) → the specs its scope column references →

@@ -24,7 +24,8 @@ Status: partial — see the per-invariant markers
 
 ## Phases
 
-Status: implemented (src/App.tsx GamePhase)
+Status: partial — machine and CORE-01 implemented (src/App.tsx GamePhase);
+CORE-05 instant retry planned (P6)
 
 `ready → running → (cleared | gameover)`; both terminal phases return to
 `running` via the start/retry button (which resets the sim). Rules:
@@ -34,6 +35,13 @@ Status: implemented (src/App.tsx GamePhase)
 - Input (pointer taps on screen halves, ArrowLeft/ArrowRight) moves lanes only
   during `running`; lane index clamps to `[0, laneCount-1]`.
 - A non-`running` phase still animates an idle/attract scene.
+- `CORE-05` *(planned, P6)* **Instant retry**: on entering a terminal phase,
+  input locks for `GAME_CONFIG.retryLockout` (0.4 s — absorbs trailing panic
+  taps from the crash and matches the shake settling); after the lockout, any
+  pointer tap on the play area or any keypress restarts straight into
+  `running` (never back through `ready`). The first-launch `ready` screen
+  stays and additionally accepts tap-anywhere; the overlay start/retry button
+  stays as the accessible path. Details: `SPEC-ROADMAP › P6`.
 
 ## Units and scrolling
 
@@ -109,6 +117,11 @@ export const ZONE_TABLE: readonly ZoneDef[] = [
 from `ZONE_TABLE` — call sites in `src/App.tsx` and the level banner do not
 change. Adding a fourth zone later is a table edit plus new boundary tests.
 
+**P6 retune (planned):** the short-run redesign replaces these values
+(`TARGET_DISTANCE` 240, zone bounds 50/150, speeds 7/10/13 — full table in
+`SPEC-ROADMAP › P6`). The table above stays the source of truth for the
+implemented code until the P6 commit swaps both together.
+
 **Implemented spawn cadence**: rows spawn every `spawnGapForZone(distance)`
 meters — a linear ramp between the active zone's `spawnGap.from`/`.to` across
 its start/end span (`zoneRangeAt`) — after an initial 6 m delay
@@ -137,6 +150,9 @@ banner at market-street's exit (300 m). Zone palettes live in
 three road/sky keys — all other `GAME_CONFIG.colors` entries (entity colors,
 UI) stay flat across zones per `WLD-02`.
 
+**P6 retune (planned):** the banner shortens to 0.8 s and the crossfade to
+1.2 s to fit the compressed run (`SPEC-ROADMAP › P6`).
+
 The castle-gate goal (`SPEC-WORLD › WLD-05`) is drawn by the same function
 that used to be the plain checkered goal line, now `src/render.ts`
 `drawCastleGate`: flanking stone towers with a flat-color torch-flame accent
@@ -146,7 +162,8 @@ front of it on clear (unchanged from `SPEC-WORLD › Protagonist`).
 
 ## Score
 
-Status: implemented (P4: src/gameLogic.ts calculateScore, src/App.tsx)
+Status: partial — CORE-04 implemented (P4: src/gameLogic.ts calculateScore,
+src/App.tsx); CORE-06 best score planned (P6)
 
 `CORE-04` — `score = floor(distance) + Σ collected item scores`. Distance
 remains the sole clear condition (`CORE-INV-3`); score is display and replay
@@ -156,5 +173,9 @@ value only.
   collectedScore: number): number` in `src/gameLogic.ts`.
 - HUD gains a coin counter next to the distance readout; result overlays show
   distance / coins / total score.
-- Best-score persistence to `localStorage` is a small post-P4 follow-up, not
-  part of the initial item phase.
+
+`CORE-06` *(planned, P6)* — **Best score**: the highest final score persists
+in `localStorage` under the key `vertical-rush.best`; read once on mount and
+written on run end, both inside try/catch (private-mode safe, default 0);
+shown on both result overlays. Lives entirely in `src/App.tsx`
+(`CORE-INV-2`); it never gates progress (`CORE-INV-3`).

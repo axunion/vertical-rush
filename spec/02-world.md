@@ -20,7 +20,8 @@ obstacle/item cast remains planned
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
-500 meters up the main street. Poco sprints from the bakery through the old
+500 meters up the main street (240 meters after the planned P6 short-run
+retune — `SPEC-ROADMAP › P6`). Poco sprints from the bakery through the old
 town, weaves through the crowded market, and charges up the castle road with
 the cake box held high. Bumping into anything ruins the cake; scattered coins
 (the townsfolk cheering him on) sweeten the score.
@@ -147,5 +148,21 @@ drawCastleGate)
   drawbridge-deck threshold) drawn by `src/render.ts` `drawCastleGate`. Poco's
   `victory` animation plays in front of it on clear.
 - Typography: HUD/overlay text may keep the current sans-serif stack for now;
-  an embedded pixel font is an optional post-P5 refinement. UI display text
+  an embedded pixel font is an optional backlog refinement. UI display text
   remains Japanese; spec and code text are English.
+
+## Theme swap
+
+Status: planned (P7 entities, P8 background — `SPEC-ROADMAP`)
+
+`WLD-06` — The Karamell world above is the **default theme**, not a hard
+dependency. The entire visible world is re-skinnable by replacing the three
+fixed-name PNGs under `public/assets/sheets/` (`poco.png`, `entities.png`,
+`town.png`) per the exact layouts and authoring rules in `SPEC-RENDER ›
+RND-08` — no code, config, or spec change per theme. Constraints that survive
+any theme: the player key color rules (`SPEC-RENDER › RND-05` theming
+addendum), silhouettes/footprints fixed by `SPEC-ENTITIES › ENT-02` sizes,
+and the procedural fallback look (this spec's palette and cast), which
+remains what players see when a sheet is absent (`RND-INV-1`). Fiction,
+entity motifs, and zone names stay as authored here unless a future spec
+change renames them — a theme changes pixels, not mechanics.

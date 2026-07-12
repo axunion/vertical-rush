@@ -1,7 +1,7 @@
 ---
 id: SPEC-RENDER
 title: Rendering (Pixel Pipeline, Sprites, Fallback)
-status: implemented
+status: partial
 code: [src/render.ts, src/sprites.ts, src/App.tsx]
 ---
 
@@ -76,9 +76,8 @@ Status: implemented (src/render.ts computeDisplayFit/sizeDisplayCanvas/blitFrame
 ## RND-04 — Sprite-sheet manifest
 
 Status: implemented (src/sprites.ts SPRITE_SHEETS, frameAt) — only the `poco`
-sheet is authored so far, matching the roadmap's "at minimum" P3 scope; the
-`entities`/`town` sheets below remain illustrative until an `EntityDef` or
-background painter actually references them
+sheet is authored so far; the `entities`/`town` sheets are now **normative**,
+with fixed layouts specified in `RND-08` (scheduled: P7 entities, P8 town)
 
 Canonical (target: `src/sprites.ts`):
 
@@ -141,6 +140,27 @@ named contract:
 - Any phase that changes the palette or the player look must update the verify
   skill's color constant **in the same change** (`SPEC-ROADMAP › P2`).
 
+Theming addendum (binds every authored/replacement asset per `RND-08`;
+planned P7/P8):
+
+- The key color stays **fixed across themes** — that is what keeps drop-in
+  swap zero-config. Every frame of a replacement `poco.png`'s `idle`, `run`,
+  and `switch` animations must contain at least 2 pixels of exactly `#D95763`
+  within sprite rows 14–18 (counted from the frame's top edge — the band the
+  verify scan row crosses); the scarf is the natural place. `crash`/`victory`
+  frames are exempt (the scan never runs in those phases).
+- No art in `entities.png`, or in `town.png`'s road/curb/landmark regions,
+  may use a color inside the ±40/channel tolerance box around `#D95763`:
+  R ∈ [177, 255], G ∈ [47, 127], B ∈ [59, 139].
+- A theme that genuinely must change the key color updates the verify skill's
+  color constant in the same change (the existing rule above) — by definition
+  it is then no longer a pure drop-in.
+- Known pre-existing ambiguity: the base palette's `terracotta #C65B41`
+  (fallback cat body, chicken beaks) already sits inside that tolerance box.
+  Authored themes following the rule above are strictly cleaner than the
+  procedural fallback; tightening the fallback palette is optional later
+  work, not a P7/P8 blocker.
+
 ## RND-06 — Draw dispatcher and background painters
 
 Status: implemented (src/render.ts drawEntity, drawPlayer)
@@ -192,20 +212,118 @@ stray-cat, `chicken` = chicken-flock birds, `barrel` = rolling-barrel). P4
 added `"coin"` when the `coin` item landed; P5 added `"gem"` and the three
 mover silhouettes, per `ENT-05`'s extension contract.
 
-## Asset layout
+## RND-08 — Fixed asset contract (drop-in theming)
 
-Status: partial — `poco.png` implemented; `entities.png`/`town.png` remain
-planned (unscheduled — no `EntityDef` or background painter references a
-sheet yet)
+Status: partial — `poco.png` implemented (P3); `entities.png` planned (P7);
+`town.png` planned (P8)
+
+A **theme is exactly three PNGs** with fixed filenames and fixed layouts under
+`public/assets/sheets/`. Replacing them (all or some) re-themes the game;
+there is no theme manifest, config file, or code change. The in-code manifests
+(`SPRITE_SHEETS`, `TILE_SHEETS`) describe these layouts and never change per
+theme (`SPEC-WORLD › WLD-06`).
 
 ```
-public/assets/sheets/poco.png       # player animations (RND-04 layout) — implemented
-public/assets/sheets/entities.png   # obstacles + items, one sheet — planned
-public/assets/sheets/town.png       # background tiles: cobbles, curbs, gate, props — planned
+public/assets/sheets/poco.png       # player animations — implemented (P3)
+public/assets/sheets/entities.png   # obstacles + items — planned (P7)
+public/assets/sheets/town.png       # road, curbs, gate, landmarks — planned (P8)
 ```
 
-- Manifests (`SPRITE_SHEETS`) live in `src/sprites.ts` and are bundled; only
-  PNGs live under `public/`.
+Fallback granularity is **per file** (`RND-INV-1`): a missing/unloadable PNG
+means everything it covers renders procedurally; a present PNG means all of
+its regions are treated as authored (a transparent region draws nothing).
+
+### `poco.png` — player (implemented, layout unchanged)
+
+**96 × 160**, 24×32 frame cells, one animation per row, frames left-to-right
+(full frame data in `RND-04`; animation timings in `SPEC-WORLD ›
+Protagonist`):
+
+| row | y | animation | frames |
+|---|---|---|---|
+| 0 | 0 | `idle` | 2 |
+| 1 | 32 | `run` | 4 |
+| 2 | 64 | `switch` (author facing **right**; mirrored in code for left) | 2 |
+| 3 | 96 | `crash` | 3 |
+| 4 | 128 | `victory` | 2 |
+
+### `entities.png` — obstacles + items (planned, P7)
+
+**80 × 144.** One entity per horizontal band; frames at the entity's native
+logical size (frame w×h **equals** `EntityDef.size` — `SPEC-ENTITIES ›
+ENT-06` — so `drawImage` never scales), laid out left-to-right from x = 0;
+band y-offsets are multiples of 8; unused band remainder is fully
+transparent. **Source of truth** for the sheet layout:
+
+| entity id | band y | frame w×h | frames | frame x offsets | fps | loop | content |
+|---|---|---|---|---|---|---|---|
+| `hay-cart` | 0 | 80×32 | 1 | 0 | — | yes | static parked wagon (fills the full frame — it is the hitbox) |
+| `market-crate` | 32 | 38×24 | 1 | 0 | — | yes | static crate stack |
+| `rolling-barrel` | 56 | 20×20 | 4 | 0, 20, 40, 60 | 12 | yes | 90°-step roll |
+| `stray-cat` | 80 | 16×12 | 2 | 0, 16 | 4 | yes | nap ↔ ear-twitch (doubles as the dart telegraph) |
+| `chicken-flock` | 96 | 12×12 | 2 | 0, 12 | 8 | yes | walk waddle — one bird; the game draws 3 staggered |
+| `coin` | 112 | 12×12 | 4 | 0, 12, 24, 36 | 8 | yes | spin |
+| `gem` | 128 | 12×12 | 2 | 0, 12 | 4 | yes | sparkle blink |
+
+- One looping animation per entity, **named by its entity id**, driven by the
+  global animation clock `drawEntity` already receives — all instances of an
+  entity animate in sync (classic pixel-runner look). No per-instance state
+  animations (e.g. separate cat telegraph/hop rows): `drawEntity` has no
+  per-instance behavior state, and adding it is not justified.
+- `stray-cat` and `chicken-flock` are authored facing right; no mirroring is
+  applied to entities.
+- Future entities (`town-guard` 16×24, `fountain` 40×40, …) append new bands
+  **below** y = 144 when their phase schedules them; existing band offsets
+  never move.
+
+### `town.png` — background tiles, gate, landmarks (planned, P8)
+
+**192 × 128.** Region-based (no animation). Zone ids match `SPEC-CORE ›
+CORE-03`. **Source of truth** for the sheet layout:
+
+| region key | x, y | w×h | drawn how |
+|---|---|---|---|
+| `road-old-town` | 0, 0 | 32×32 | repeating pattern filling the 156-wide playfield; vertical scroll period 32 (matches today's procedural pattern) |
+| `road-market-street` | 32, 0 | 32×32 | 〃 |
+| `road-castle-road` | 64, 0 | 32×32 | 〃 |
+| `curb-old-town` | 96, 0 | 12×32 | repeating pattern filling both 12-wide curb strips (x 0–11 and 168–179); identical art both sides |
+| `curb-market-street` | 112, 0 | 12×32 | 〃 |
+| `curb-castle-road` | 128, 0 | 12×32 | 〃 |
+| `castle-gate` | 0, 32 | 180×48 | single `drawImage`; the drawbridge threshold line sits exactly 32 px from the region top (towers above, 16 px deck below) |
+| `town-gate-arch` | 0, 80 | 180×24 | single `drawImage` at the zone-1 exit landmark position |
+| `market-banner` | 0, 104 | 180×24 | single `drawImage` at the zone-2 exit landmark position |
+
+- Everything outside the listed regions is transparent.
+- Per-zone road/curb variants replace the palette crossfade for image themes:
+  during the zone-transition fade window the painters blend the from/to zone
+  patterns (`RND-09`). The area outside the curbs keeps the procedural
+  `duskPurple` fill (still palette-crossfaded).
+- Gate/landmark regions are 180 wide (full canvas) so art may bleed over the
+  curbs, as the procedural towers/pillars do today.
+- **Not themeable** (stays procedural): lane lines, speed lines, particles —
+  palette-driven fx, not theme art.
+
+### Authoring rules (all three files)
+
+1. **Format:** PNG with alpha (indexed PNG-8 or RGBA). Rendered with
+   smoothing off at 1:1 logical scale — author at the exact pixel dimensions
+   above; the code never scales frames.
+2. **Alpha is 1-bit in effect:** every pixel fully opaque or fully
+   transparent. No semi-transparent pixels (they anti-alias edges, breaking
+   `SPEC-WORLD › WLD-03`).
+3. **Road and curb regions must be fully opaque** — they are pattern fills;
+   holes would show the sky fill through the road.
+4. **Outlines are baked into the art:** 1 px dark outline on characters and
+   interactive objects (`WLD-03`); the outline color is the theme's own
+   darkest "ink".
+5. **Palette is otherwise free per theme**, except the player key color rules
+   in `RND-05`'s theming addendum (fixed `#D95763` scarf pixels in poco's
+   scan band; the tolerance-box exclusion for entities/town regions).
+
+### Loading
+
+- Manifests (`SPRITE_SHEETS`, `TILE_SHEETS`) live in `src/sprites.ts` and are
+  bundled; only PNGs live under `public/`.
 - Loading: `src/render.ts` `loadSpriteSheets` builds a per-sheet promise
   resolving to `null` on error (`Image` `onload`/`onerror`); remember Vite
   serves 200 text/html for missing `/assets/*` (SPA fallback), so failure
@@ -217,5 +335,45 @@ public/assets/sheets/town.png       # background tiles: cobbles, curbs, gate, pr
   `drawObstacles`/`drawPlayer` pair, so both the two-key config and its
   loader became orphaned as soon as that pair was deleted. Neither PNG ever
   existed under `public/`, so behavior is unaffected. The real sprite-sheet
-  manifest below (`SPRITE_SHEETS`, actual PNGs, a fresh per-sheet loader) is
-  still P3 scope.
+  manifest (`SPRITE_SHEETS`, actual PNGs, a fresh per-sheet loader) landed in
+  P3.
+
+## RND-09 — Tile-region manifest & background image painters
+
+Status: planned (P8)
+
+`town.png` is region-based, not animated, so it gets its own minimal manifest
+type instead of overloading `SpriteSheetDef` with animation semantics.
+
+Canonical (target: `src/sprites.ts`):
+
+```ts
+export interface TileSheetDef {
+  id: string; // "town"
+  src: string; // "/assets/sheets/town.png"
+  regions: Record<string, FrameRect>; // keys per RND-08's town.png table
+}
+
+export const TILE_SHEETS: Record<string, TileSheetDef> = {
+  /* one entry: town */
+};
+```
+
+- `src/render.ts` `loadSpriteSheets` loosens its input type to
+  `Record<string, { src: string }>` (it only reads `src`), so the shell loads
+  `{ ...SPRITE_SHEETS, ...TILE_SHEETS }` into the one existing sheet-image
+  map — ids (`poco`/`entities`/`town`) are disjoint.
+- Road/curb regions are cropped once into a cached `CanvasPattern` (keyed
+  `sheetId|regionKey`, the existing pattern-cache idiom) and pattern-fill
+  their strips with the existing scroll offset.
+- **Zone crossfade with tiles:** during the zone-transition fade window the
+  painters fill with the previous zone's pattern, then the new zone's pattern
+  at `globalAlpha = t` (two-pass blend of the same fade state `frameColors`
+  already tracks). Steady state is a single fill of the current zone's
+  pattern.
+- Gate and landmark regions draw with a single `drawImage` each; the gate is
+  anchored so its threshold line (region top + 32) sits at the goal y the
+  procedural `drawCastleGate` uses today.
+- Every painter keeps its procedural branch: `town.png` missing →
+  `drawRoad`/`drawCurbs`/`drawCastleGate`/`drawZoneLandmark` render exactly
+  as today (`RND-INV-1`).

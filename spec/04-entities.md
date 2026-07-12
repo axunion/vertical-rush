@@ -256,7 +256,8 @@ gem support via CollectedItem.defId)
 
 ## Extensibility contract
 
-Status: planned (P5 proves it)
+Status: planned (unscheduled — P5 shipped `gem` and movers without proving
+this; see the P5 note in `SPEC-ROADMAP › Completed phases (P0–P5)`)
 
 `ENT-05` — Adding a new **static obstacle or score item** touches only data:
 
@@ -269,4 +270,25 @@ Status: planned (P5 proves it)
 No edits to `App.tsx`, `render.ts` dispatch, or `gameLogic.ts`. A new
 *behavior kind* or *effect kind* is the one case that legitimately extends the
 unions and the shell's dispatch — that is a design change, not content.
-P5's completion criterion is that its third obstacle lands via steps 1–3 only.
+P5 shipped its new entities via that carve-out (see the P5 note in
+`SPEC-ROADMAP › Completed phases (P0–P5)`), so the data-only path is proven
+by the first future entity that lands via steps 1–3 alone.
+
+## Sprite binding
+
+Status: planned (P7)
+
+`ENT-06` — Every `ENTITY_DEFS` row binds to the `entities` sprite sheet
+(`SPEC-RENDER › RND-08`) as `sprite: { sheet: "entities", animation: <its own
+id> }`; the sheet defines one looping animation per entity, keyed by entity
+id. Rules:
+
+- Every frame referenced by an entity's animation has `w`/`h` exactly equal
+  to that entity's `ENT-02` `size` — the sprite is never scaled, and the
+  fallback shape already draws the same Box (`RND-INV-1`), so collision feel
+  is identical with or without the PNG.
+- `sprite: null` remains legal and is the required state for entities whose
+  sheet band is not yet specified in `RND-08` (the post-P5 cast).
+- Unit tests enforce the binding: each non-null `sprite` resolves to an
+  existing sheet + animation, and each referenced frame matches `def.size`
+  and stays inside the sheet bounds.
