@@ -13,12 +13,12 @@ import {
 
 describe("zoneRangeAt", () => {
   it.each([
-    [0, "old-town", 0, 100],
-    [100, "old-town", 0, 100],
-    [100.5, "market-street", 100, 300],
-    [300, "market-street", 100, 300],
-    [301, "castle-road", 300, TARGET_DISTANCE],
-    [600, "castle-road", 300, TARGET_DISTANCE],
+    [0, "old-town", 0, 50],
+    [50, "old-town", 0, 50],
+    [50.5, "market-street", 50, 150],
+    [150, "market-street", 50, 150],
+    [151, "castle-road", 150, TARGET_DISTANCE],
+    [300, "castle-road", 150, TARGET_DISTANCE],
   ])("at distance %f resolves zone %s spanning %f..%f", (distance, id, start, end) => {
     const range = zoneRangeAt(distance);
     expect(range.zone.id).toBe(id);
@@ -29,16 +29,16 @@ describe("zoneRangeAt", () => {
 
 describe("spawnGapForZone", () => {
   it.each([
-    [0, 8],
-    [50, 7.5],
-    [100, 7],
-    [100.5, 7],
-    [200, 6.5],
-    [300, 6],
-    [301, 6],
-    [400, 5.75],
-    [500, 5.5],
-    [600, 5.5],
+    [0, 7],
+    [25, 6.5],
+    [50, 6],
+    [51, 6.49],
+    [100, 6],
+    [150, 5.5],
+    [151, 5.9944],
+    [195, 5.75],
+    [240, 5.5],
+    [300, 5.5],
   ])("returns %f m gap at distance %f", (distance, expected) => {
     expect(spawnGapForZone(distance)).toBeCloseTo(expected);
   });
@@ -46,16 +46,16 @@ describe("spawnGapForZone", () => {
 
 describe("calculateLevel", () => {
   it.each([
-    [-1, { level: 1, speed: 5 }],
-    [0, { level: 1, speed: 5 }],
-    [100, { level: 1, speed: 5 }],
-    [100.5, { level: 2, speed: 8 }],
-    [101, { level: 2, speed: 8 }],
-    [300, { level: 2, speed: 8 }],
-    [301, { level: 3, speed: 12 }],
-    [499, { level: 3, speed: 12 }],
-    [500, { level: 3, speed: 12 }],
-    [501, { level: 3, speed: 12 }],
+    [-1, { level: 1, speed: 7 }],
+    [0, { level: 1, speed: 7 }],
+    [50, { level: 1, speed: 7 }],
+    [50.5, { level: 2, speed: 10 }],
+    [51, { level: 2, speed: 10 }],
+    [150, { level: 2, speed: 10 }],
+    [151, { level: 3, speed: 13 }],
+    [239, { level: 3, speed: 13 }],
+    [240, { level: 3, speed: 13 }],
+    [241, { level: 3, speed: 13 }],
   ])("returns %j level info for distance %f", (distance, expected) => {
     expect(calculateLevel(distance)).toEqual(expected);
   });
@@ -63,15 +63,15 @@ describe("calculateLevel", () => {
 
 describe("isGameCleared", () => {
   it("returns false when distance is below the target", () => {
-    expect(isGameCleared(499, 500)).toBe(false);
+    expect(isGameCleared(TARGET_DISTANCE - 1, TARGET_DISTANCE)).toBe(false);
   });
 
   it("returns true when distance equals the target", () => {
-    expect(isGameCleared(500, 500)).toBe(true);
+    expect(isGameCleared(TARGET_DISTANCE, TARGET_DISTANCE)).toBe(true);
   });
 
   it("returns true when distance barely exceeds the target", () => {
-    expect(isGameCleared(500.0001, 500)).toBe(true);
+    expect(isGameCleared(TARGET_DISTANCE + 0.0001, TARGET_DISTANCE)).toBe(true);
   });
 });
 

@@ -101,9 +101,11 @@ const GAME_CONFIG = {
   },
   idle: { scrollRatio: 0.06, animRate: 0.8 },
   shake: { duration: 0.45, magnitude: 7 },
-  bannerDuration: 1.2,
+  bannerDuration: 0.8,
   /** SPEC-CORE zone transitions: road/sky crossfade duration on a zone change. */
-  zoneCrossfadeDuration: 2,
+  zoneCrossfadeDuration: 1.2,
+  /** CORE-05: input lockout after entering a terminal phase, absorbing trailing panic taps from the crash. */
+  retryLockout: 0.4,
   font: '"Avenir Next", Futura, "Trebuchet MS", sans-serif',
   colors: {
     ink: "#33272E",
@@ -156,12 +158,16 @@ const ZONE_STEADY_COLORS: Record<string, RenderColors> = Object.fromEntries(
 
 type GamePhase = "ready" | "running" | "cleared" | "gameover";
 
+/** CORE-06: localStorage key for the persisted best score. */
+const BEST_SCORE_KEY = "vertical-rush.best";
+
 export default function App() {
   const [phase, setPhase] = createSignal<GamePhase>("ready");
   const [level, setLevel] = createSignal(1);
   const [distance, setDistance] = createSignal(0);
   const [coins, setCoins] = createSignal(0);
   const [collectedScore, setCollectedScore] = createSignal(0);
+  const [bestScore, setBestScore] = createSignal(0);
 
   let rootEl!: HTMLDivElement;
   let canvasEl!: HTMLCanvasElement;
@@ -211,6 +217,8 @@ export default function App() {
     bgOffset: 0,
     prevLevel: 1,
     bannerTime: 0,
+    /** CORE-05: seconds remaining before a tap/keypress may restart the run, set on entering cleared/gameover. */
+    terminalLockTime: 0,
     /** SPEC-CORE zone transitions: the zone crossfading FROM, and seconds remaining in that crossfade. */
     zoneFadeFrom: ZONE_TABLE[0].id,
     zoneFadeTime: 0,
@@ -267,6 +275,7 @@ export default function App() {
     sim.shakeTime = 0;
     sim.prevLevel = 1;
     sim.bannerTime = 0;
+    sim.terminalLockTime = 0;
     sim.zoneFadeFrom = ZONE_TABLE[0].id;
     sim.zoneFadeTime = 0;
     sim.bgmDucked = false;
@@ -288,6 +297,28 @@ export default function App() {
     sfx.startBgm(ZONE_TABLE[0].id);
   };
 
+  /** CORE-05: restarts unless still within the post-terminal-phase lockout window; always a no-op while running. */
+  const retry = () => {
+    if (sim.terminalLockTime > 0) {
+      return;
+    }
+    start();
+  };
+
+  /** CORE-06: updates the persisted best score if this run's final score beats it. */
+  const finishRun = () => {
+    const score = calculateScore(distance(), collectedScore());
+    if (score <= bestScore()) {
+      return;
+    }
+    setBestScore(score);
+    try {
+      localStorage.setItem(BEST_SCORE_KEY, String(score));
+    } catch {
+      // localStorage unavailable (private mode); best score just won't persist.
+    }
+  };
+
   const moveLane = (dir: -1 | 1) => {
     const next = Math.min(
       GAME_CONFIG.laneCount - 1,
@@ -303,21 +334,28 @@ export default function App() {
 
   const handlePointerDown = (e: PointerEvent) => {
     sfx.unlock();
-    if (phase() !== "running") {
+    if (phase() === "running") {
+      e.preventDefault();
+      const rect = rootEl.getBoundingClientRect();
+      moveLane(e.clientX - rect.left < rect.width / 2 ? -1 : 1);
       return;
     }
-    e.preventDefault();
-    const rect = rootEl.getBoundingClientRect();
-    moveLane(e.clientX - rect.left < rect.width / 2 ? -1 : 1);
+    retry();
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+    const p = phase();
+    if (p === "running") {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+        return;
+      }
+      sfx.unlock();
+      moveLane(e.key === "ArrowLeft" ? -1 : 1);
       return;
     }
-    sfx.unlock();
-    if (phase() === "running") {
-      moveLane(e.key === "ArrowLeft" ? -1 : 1);
+    if (p === "cleared" || p === "gameover") {
+      sfx.unlock();
+      retry();
     }
   };
 
@@ -379,6 +417,8 @@ export default function App() {
 
   const crash = (player: Box) => {
     setPhase("gameover");
+    sim.terminalLockTime = GAME_CONFIG.retryLockout;
+    finishRun();
     sfx.gameOver();
     sfx.stopBgm();
     sim.shakeTime = GAME_CONFIG.shake.duration;
@@ -429,6 +469,8 @@ export default function App() {
     // Reaching the goal wins over a same-frame collision.
     if (isGameCleared(sim.distance, GAME_CONFIG.targetDistance)) {
       setPhase("cleared");
+      sim.terminalLockTime = GAME_CONFIG.retryLockout;
+      finishRun();
       sfx.clear();
       sfx.stopBgm();
       return;
@@ -473,6 +515,7 @@ export default function App() {
     sim.shakeTime = Math.max(0, sim.shakeTime - dt);
     sim.bannerTime = Math.max(0, sim.bannerTime - dt);
     sim.zoneFadeTime = Math.max(0, sim.zoneFadeTime - dt);
+    sim.terminalLockTime = Math.max(0, sim.terminalLockTime - dt);
     const bannerShowing = sim.bannerTime > 0;
     if (bannerShowing !== sim.bgmDucked) {
       sim.bgmDucked = bannerShowing;
@@ -565,6 +608,14 @@ export default function App() {
   };
 
   onMount(() => {
+    try {
+      const saved = Number(localStorage.getItem(BEST_SCORE_KEY));
+      if (Number.isFinite(saved) && saved > 0) {
+        setBestScore(saved);
+      }
+    } catch {
+      // localStorage unavailable (private mode); best score defaults to 0.
+    }
     const context = canvasEl.getContext("2d");
     if (!context) {
       console.error("Canvas 2D context unavailable; the game cannot start.");
@@ -616,10 +667,12 @@ export default function App() {
     sfx.dispose();
   });
 
-  /** Shared coins/score line for the cleared/gameover result overlays (CORE-04). */
+  /** Shared coins/score/best line for the cleared/gameover result overlays (CORE-04, CORE-06). */
   const scoreLine = () => (
     <>
       コイン {coins()}枚 / スコア {calculateScore(distance(), collectedScore())}
+      <br />
+      ベスト {bestScore()}
     </>
   );
 
@@ -632,7 +685,7 @@ export default function App() {
     <div class={styles.overlay}>
       <h1 class={`${styles.title} ${titleClass}`}>{title}</h1>
       <p class={styles.caption}>{caption}</p>
-      <Button class={styles.button} onClick={start}>
+      <Button class={styles.button} onClick={retry}>
         {buttonLabel}
       </Button>
     </div>
@@ -679,6 +732,8 @@ export default function App() {
               {GAME_CONFIG.targetDistance}m 完走！ お見事！
               <br />
               {scoreLine()}
+              <br />
+              タップでもう一度
             </>,
             "もう一度走る",
           )}
@@ -691,6 +746,8 @@ export default function App() {
               {distance()}m 地点でクラッシュ…
               <br />
               {scoreLine()}
+              <br />
+              タップでリトライ
             </>,
             "リトライ",
           )}

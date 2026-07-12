@@ -7,32 +7,31 @@ code: []
 
 # Implementation Roadmap
 
-Ordered phases. **P0–P5 (the pixel-art fantasy town redesign) are complete**
-and kept below as summaries only — their full scope text lives in git history.
-Current work is **P6–P8**: the short-run casual retune and the drop-in image
-theming contract. Each phase is **independently shippable**: the game is
-complete-feeling at every phase boundary. Do not start a phase's scope early;
-specs mark deferred work as `planned (Pn)` for a reason.
+Ordered phases. **P0–P6 (the pixel-art fantasy town redesign and the
+short-run casual retune) are complete** and kept below as summaries only —
+their full scope text lives in git history. Current work is **P7–P8**: the
+drop-in image theming contract. Each phase is **independently shippable**:
+the game is complete-feeling at every phase boundary. Do not start a phase's
+scope early; specs mark deferred work as `planned (Pn)` for a reason.
 
 Every phase ends with the same verification triplet:
 
 1. `pnpm test` — all unit tests green.
 2. `pnpm check` — Biome + `tsc -b` green.
 3. The `verify` skill (`.claude/skills/verify/SKILL.md`) — both deterministic
-   scenarios: `Math.random = () => 0.4` (idle player clears at the goal —
-   500 m today; **240 m once P6 lands**, which updates the skill's distances
-   first) and `Math.random = () => 0.9` (crash within ~5 s).
+   scenarios: `Math.random = () => 0.4` (idle player clears at the goal,
+   240 m) and `Math.random = () => 0.9` (crash within ~5 s).
 
 Completion additionally requires flipping the relevant `Status:` lines in
 these specs from `planned (Pn)` to `implemented (module symbol)` in the same
 commit — that is what keeps spec/code drift structurally bounded.
 
-## Completed phases (P0–P5)
+## Completed phases (P0–P6)
 
 Status: implemented
 
 Summaries only; full scope, completion criteria, and verification text is in
-git history (this file, before the P6 rewrite).
+git history (this file, before the P6/P7 rewrites).
 
 - **P0 — Specification suite.** This document set, the `CLAUDE.md`
   spec-sync/tunables-ownership rules, and the README pointer.
@@ -57,68 +56,16 @@ git history (this file, before the P6 rewrite).
   shapes, so the literal data-only extensibility claim remains unproven and
   `SPEC-ENTITIES › Extensibility contract` stays `planned` — deferred, not a
   P5 blocker.
-
-## P6 — Short-run redesign (instant loop)
-
-Status: planned (P6)
-
-**Goal:** the game becomes a rapid loop of short bursts — one run compresses
-from 500 m / ~62 s to **240 m / ~24 s**, and a finished run restarts with a
-single tap in under a second. Structure (3 zones, clear-at-the-gate, one-hit
-runs) is unchanged; only pacing and the retry loop change.
-
-**Scope:**
-
-- **Difficulty retable** (`src/gameLogic.ts`, test-first).
-  `TARGET_DISTANCE` 500 → **240**. New `ZONE_TABLE` values — on completion
-  this table replaces the `SPEC-CORE › CORE-03` source-of-truth table (which
-  keeps the implemented 500 m values until then):
-
-  | zone id | level | range (m) | speed (m/s) | spawn gap (m, ramp) | zone time |
-  |---|---|---|---|---|---|
-  | `old-town` | 1 | 0 ≤ d ≤ 50 | 7 | 7 → 6 | 7.1 s |
-  | `market-street` | 2 | 50 < d ≤ 150 | 10 | 6.5 → 5.5 | 10.0 s |
-  | `castle-road` | 3 | 150 < d (`upTo: Infinity`, ramp capped at 240) | 13 | 6 → 5.5 | 6.9 s |
-
-  Perfect run: 50/7 + 100/10 + 90/13 ≈ **24.1 s**. The opening speeds up
-  (5 → 7 m/s) so the first zone is not a third of the run spent warming up;
-  reaction windows stay casual (old-town gap/speed ≈ 0.86 s at worst).
-  `SPAWN_GAP.initialDelay` stays 6 m — the speed bump alone compresses
-  time-to-first-row to ~0.86 s. Landmark positions, gem midpoints, and the
-  HUD progress bar all derive from `ZONE_TABLE`/`TARGET_DISTANCE` and follow
-  automatically.
-- **Compressed presentation** (`src/App.tsx` `GAME_CONFIG`):
-  `bannerDuration` 1.2 → **0.8 s**, `zoneCrossfadeDuration` 2 → **1.2 s** (a
-  2 s fade would occupy a third of the new 6.9 s final zone).
-- **Instant retry** (`SPEC-CORE › CORE-05`, new): on entering
-  `cleared`/`gameover`, input locks for `GAME_CONFIG.retryLockout`
-  (**0.4 s**) — absorbing trailing panic taps from the crash and matching the
-  0.45 s shake settling — then any pointer tap on the play area or any
-  keypress calls the existing `start()` straight into `running`. Retry never
-  re-enters `ready`. The first-launch `ready` screen stays (controls text +
-  audio-unlock gesture) and additionally accepts tap-anywhere. The overlay
-  start/retry `<button>` stays (accessibility + the verify skill drives it);
-  result captions state the tap affordance.
-- **Best score** (`SPEC-CORE › CORE-06`, new; pulled forward from the
-  backlog): `localStorage` key `vertical-rush.best`, read once on mount and
-  written on run end inside try/catch (private-mode safe), shown on both
-  result overlays. Lives entirely in `src/App.tsx` (`CORE-INV-2`).
-
-**Completion criteria:**
-
-- Perfect-run time ≈ 24 s; `ZONE_TABLE`/`TARGET_DISTANCE` match the CORE-03
-  table exactly (boundary tests updated test-first).
-- Terminal-phase tap during the 0.4 s lockout does **not** restart; after it,
-  a tap restarts into `running` within one frame.
-- Best score persists across a reload and only ever increases.
-- `SPEC-CORE` CORE-03/CORE-05/CORE-06 and the `SPEC-OVERVIEW` pitch flipped
-  to the new values/`implemented` in the same commit.
-
-**Verification:** update the hardcoded distances in
-`.claude/skills/verify/SKILL.md` (clear at 240 m ≈ 24 s; LV.2 past 50 m ≈ 7 s,
-LV.3 past 150 m ≈ 17 s) and `.claude/skills/phase-gate/SKILL.md` (500 m
-mention) **first**, add the lockout check to the verify scenarios, then run
-the triplet.
+- **P6 — Short-run redesign (instant loop).** Compressed a run from 500 m /
+  ~62 s to **240 m / ~24 s** via a `ZONE_TABLE` retable (`CORE-03`: bounds
+  50/150, speeds 7/10/13, tighter spawn-gap ramps) and shorter zone-transition
+  presentation (`bannerDuration` 0.8 s, `zoneCrossfadeDuration` 1.2 s); added
+  instant tap-to-retry (`CORE-05`: `GAME_CONFIG.retryLockout` 0.4 s input lock
+  on entering a terminal phase, then any tap/keypress restarts straight into
+  `running`, never back through `ready`) and a persisted best score
+  (`CORE-06`: `localStorage` `vertical-rush.best`, shown on both result
+  overlays). Structure (3 zones, clear-at-the-gate, one-hit runs) was
+  unchanged; only pacing and the retry loop changed.
 
 ## P7 — Entity sheet contract (`entities.png`)
 

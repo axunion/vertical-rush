@@ -1,7 +1,7 @@
 # vertical-rush
 
 A mobile-first vertical scrolling run game. Tap left/right to switch lanes, dodge
-obstacles, and reach the goal 500m ahead.
+obstacles, and reach the goal 240m ahead.
 
 - **Stack**: Vite / SolidJS / Kobalte / TypeScript / CSS Modules
 - **Testing & quality**: Vitest / Biome / lefthook

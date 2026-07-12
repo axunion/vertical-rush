@@ -29,7 +29,7 @@ nothing to flip.
 1. `pnpm test` — all unit tests green.
 2. `pnpm check` — Biome + `tsc -b` green.
 3. The `verify` skill (`.claude/skills/verify/SKILL.md`) — both deterministic
-   scenarios: `Math.random = () => 0.4` (idle player clears at 500 m) and
+   scenarios: `Math.random = () => 0.4` (idle player clears at 240 m) and
    `Math.random = () => 0.9` (crash within ~5 s).
 
 ## 3. Confirm spec Status flips

@@ -24,8 +24,7 @@ Status: partial — see the per-invariant markers
 
 ## Phases
 
-Status: partial — machine and CORE-01 implemented (src/App.tsx GamePhase);
-CORE-05 instant retry planned (P6)
+Status: implemented (src/App.tsx GamePhase; CORE-05 instant retry, P6)
 
 `ready → running → (cleared | gameover)`; both terminal phases return to
 `running` via the start/retry button (which resets the sim). Rules:
@@ -35,13 +34,14 @@ CORE-05 instant retry planned (P6)
 - Input (pointer taps on screen halves, ArrowLeft/ArrowRight) moves lanes only
   during `running`; lane index clamps to `[0, laneCount-1]`.
 - A non-`running` phase still animates an idle/attract scene.
-- `CORE-05` *(planned, P6)* **Instant retry**: on entering a terminal phase,
-  input locks for `GAME_CONFIG.retryLockout` (0.4 s — absorbs trailing panic
-  taps from the crash and matches the shake settling); after the lockout, any
-  pointer tap on the play area or any keypress restarts straight into
-  `running` (never back through `ready`). The first-launch `ready` screen
-  stays and additionally accepts tap-anywhere; the overlay start/retry button
-  stays as the accessible path. Details: `SPEC-ROADMAP › P6`.
+- `CORE-05` *(implemented, P6: src/App.tsx sim.terminalLockTime, retry)*
+  **Instant retry**: on entering a terminal phase, input locks for
+  `GAME_CONFIG.retryLockout` (0.4 s — absorbs trailing panic taps from the
+  crash and matches the shake settling); after the lockout, any pointer tap on
+  the play area or any keypress restarts straight into `running` (never back
+  through `ready`). The first-launch `ready` screen stays and additionally
+  accepts tap-anywhere; the overlay start/retry button stays as the
+  accessible path (routed through the same `retry` gate).
 
 ## Units and scrolling
 
@@ -49,7 +49,7 @@ Status: implemented (src/App.tsx updateGame, pxPerUnit)
 
 - The player is fixed on screen; the world scrolls down.
 - Distance advances `speed * dt` meters per frame; distance is clamped to
-  `TARGET_DISTANCE` (500, `src/gameLogic.ts`).
+  `TARGET_DISTANCE` (240, `src/gameLogic.ts`).
 - Pixel scroll per frame = `speed * pxPerUnit() * dt`, where
   `pxPerUnit = viewHeight * GAME_CONFIG.speedRatio` (0.11). Since the pixel
   pipeline landed (`SPEC-RENDER › RND-02`), `viewHeight` is the fixed logical
@@ -84,16 +84,16 @@ adds a world identity per tier.
 
 | zone id | level | range (m) | speed (m/s) | spawn gap (m, ramp within zone) | palette shift |
 |---|---|---|---|---|---|
-| `old-town` | 1 | 0 ≤ d ≤ 100 | 5 | 8 → 7 | golden afternoon |
-| `market-street` | 2 | 100 < d ≤ 300 | 8 | 7 → 6 | saturated: awnings, lantern strings |
-| `castle-road` | 3 | 300 < d | 12 | 6 → 5.5 | dusk: cool road, torch-glow accents |
+| `old-town` | 1 | 0 ≤ d ≤ 50 | 7 | 7 → 6 | golden afternoon |
+| `market-street` | 2 | 50 < d ≤ 150 | 10 | 6.5 → 5.5 | saturated: awnings, lantern strings |
+| `castle-road` | 3 | 150 < d | 13 | 6 → 5.5 | dusk: cool road, torch-glow accents |
 
 Boundary semantics match the implemented code: bounds are **inclusive upper**
-(`d <= 100` is still `old-town`), and the last zone extends beyond 500 m. Since
+(`d <= 50` is still `old-town`), and the last zone extends beyond 240 m. Since
 `castle-road`'s `upTo` is `Infinity`, its spawn-gap ramp (and the `zoneMidpoint`
 that `SPEC-ENTITIES › ENT-02` gem placement uses) has no natural end distance;
-`zoneRangeAt` caps it at `TARGET_DISTANCE` (500), giving it the same 200 m ramp
-span as `market-street` and reaching `5.5` exactly at the goal.
+`zoneRangeAt` caps it at `TARGET_DISTANCE` (240), giving it a 90 m ramp span
+and reaching `5.5` exactly at the goal.
 
 Canonical types (target: `src/gameLogic.ts`):
 
@@ -107,20 +107,15 @@ export interface ZoneDef {
 }
 
 export const ZONE_TABLE: readonly ZoneDef[] = [
-  { id: "old-town", level: 1, upTo: 100, speed: 5, spawnGap: { from: 8, to: 7 } },
-  { id: "market-street", level: 2, upTo: 300, speed: 8, spawnGap: { from: 7, to: 6 } },
-  { id: "castle-road", level: 3, upTo: Infinity, speed: 12, spawnGap: { from: 6, to: 5.5 } },
+  { id: "old-town", level: 1, upTo: 50, speed: 7, spawnGap: { from: 7, to: 6 } },
+  { id: "market-street", level: 2, upTo: 150, speed: 10, spawnGap: { from: 6.5, to: 5.5 } },
+  { id: "castle-road", level: 3, upTo: Infinity, speed: 13, spawnGap: { from: 6, to: 5.5 } },
 ];
 ```
 
 `calculateLevel(distance)` keeps its exact signature (`LevelInfo`), derived
 from `ZONE_TABLE` — call sites in `src/App.tsx` and the level banner do not
 change. Adding a fourth zone later is a table edit plus new boundary tests.
-
-**P6 retune (planned):** the short-run redesign replaces these values
-(`TARGET_DISTANCE` 240, zone bounds 50/150, speeds 7/10/13 — full table in
-`SPEC-ROADMAP › P6`). The table above stays the source of truth for the
-implemented code until the P6 commit swaps both together.
 
 **Implemented spawn cadence**: rows spawn every `spawnGapForZone(distance)`
 meters — a linear ramp between the active zone's `spawnGap.from`/`.to` across
@@ -135,23 +130,20 @@ Status: implemented (P5: src/App.tsx ZONE_PALETTES, sim.zoneFadeFrom/
 zoneFadeTime, frameColors; src/render.ts lerpHexColor, drawBanner,
 ZONE_LANDMARKS/drawZoneLandmark, drawCastleGate)
 
-On crossing a zone boundary: the existing 1.2 s banner (retitled
+On crossing a zone boundary: the existing 0.8 s banner (retitled
 `ZONE 2 — MARKET STREET` / `SPEED UP!`, via `src/render.ts` `drawBanner`
 looking up the zone name from `ZONE_TABLE`) and levelUp jingle fire as before;
-additionally, a 2 s linear crossfade (`GAME_CONFIG.zoneCrossfadeDuration`,
+additionally, a 1.2 s linear crossfade (`GAME_CONFIG.zoneCrossfadeDuration`,
 `src/render.ts` `lerpHexColor`) blends the road/curb/sky colors
 (`cobbleMid`/`cobbleLight`/`duskPurple`) from the previous zone's
 `ZONE_PALETTES` entry to the new one's; and one landmark prop scrolls past,
 keyed to the same `ZONE_TABLE` boundary distances a `drawGoalLine`-style
 distance-to-screen-y computation uses (`src/render.ts` `ZONE_LANDMARKS`,
-`drawZoneLandmark`): a town gate arch at old-town's exit (100 m), a market
-banner at market-street's exit (300 m). Zone palettes live in
+`drawZoneLandmark`): a town gate arch at old-town's exit (50 m), a market
+banner at market-street's exit (150 m). Zone palettes live in
 `src/App.tsx` `ZONE_PALETTES`, a per-zone color block that only overrides the
 three road/sky keys — all other `GAME_CONFIG.colors` entries (entity colors,
 UI) stay flat across zones per `WLD-02`.
-
-**P6 retune (planned):** the banner shortens to 0.8 s and the crossfade to
-1.2 s to fit the compressed run (`SPEC-ROADMAP › P6`).
 
 The castle-gate goal (`SPEC-WORLD › WLD-05`) is drawn by the same function
 that used to be the plain checkered goal line, now `src/render.ts`
@@ -162,8 +154,8 @@ front of it on clear (unchanged from `SPEC-WORLD › Protagonist`).
 
 ## Score
 
-Status: partial — CORE-04 implemented (P4: src/gameLogic.ts calculateScore,
-src/App.tsx); CORE-06 best score planned (P6)
+Status: implemented — CORE-04 (P4: src/gameLogic.ts calculateScore,
+src/App.tsx); CORE-06 (P6: src/App.tsx bestScore, BEST_SCORE_KEY)
 
 `CORE-04` — `score = floor(distance) + Σ collected item scores`. Distance
 remains the sole clear condition (`CORE-INV-3`); score is display and replay
@@ -174,8 +166,9 @@ value only.
 - HUD gains a coin counter next to the distance readout; result overlays show
   distance / coins / total score.
 
-`CORE-06` *(planned, P6)* — **Best score**: the highest final score persists
-in `localStorage` under the key `vertical-rush.best`; read once on mount and
-written on run end, both inside try/catch (private-mode safe, default 0);
-shown on both result overlays. Lives entirely in `src/App.tsx`
-(`CORE-INV-2`); it never gates progress (`CORE-INV-3`).
+`CORE-06` *(implemented, P6: src/App.tsx bestScore, finishRun)* — **Best
+score**: the highest final score persists in `localStorage` under the key
+`vertical-rush.best`; read once on mount and written on run end, both inside
+try/catch (private-mode safe, default 0); shown on both result overlays.
+Lives entirely in `src/App.tsx` (`CORE-INV-2`); it never gates progress
+(`CORE-INV-3`).

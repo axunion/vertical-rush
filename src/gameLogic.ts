@@ -11,7 +11,7 @@ export interface LevelInfo {
 }
 
 /** Target distance (m). Used for the clear condition. */
-export const TARGET_DISTANCE = 500;
+export const TARGET_DISTANCE = 240;
 
 /**
  * Collision margin rate (0-1).
@@ -41,22 +41,22 @@ export const ZONE_TABLE: readonly ZoneDef[] = [
   {
     id: "old-town",
     level: 1,
-    upTo: 100,
-    speed: 5,
-    spawnGap: { from: 8, to: 7 },
+    upTo: 50,
+    speed: 7,
+    spawnGap: { from: 7, to: 6 },
   },
   {
     id: "market-street",
     level: 2,
-    upTo: 300,
-    speed: 8,
-    spawnGap: { from: 7, to: 6 },
+    upTo: 150,
+    speed: 10,
+    spawnGap: { from: 6.5, to: 5.5 },
   },
   {
     id: "castle-road",
     level: 3,
     upTo: Infinity,
-    speed: 12,
+    speed: 13,
     spawnGap: { from: 6, to: 5.5 },
   },
 ];

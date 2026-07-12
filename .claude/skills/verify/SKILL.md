@@ -20,7 +20,7 @@ Install `puppeteer-core` in a scratch dir and launch
 Key techniques that work:
 
 - **Deterministic scenarios** via `page.evaluateOnNewDocument("Math.random = () => X")`:
-  - `X = 0.4` → safe lane stays center → an idle player **clears** at 500m (~65s).
+  - `X = 0.4` → safe lane stays center → an idle player **clears** at 240m (~24s).
   - `X = 0.9` → obstacle lands on the player's lane → **crash** within ~5s.
 - **Player lane position**: locate the player by scanning canvas pixels for the
   rust-red key color `#D95763` (tolerance ±40, `SPEC-RENDER › RND-05`). Since
@@ -52,4 +52,19 @@ Key techniques that work:
 
 - Missing `/assets/*.png` returns **200 text/html** (Vite SPA fallback), not 404 —
   the image `onerror` fallback still engages; don't assert on request failures.
-- Level thresholds: LV.2 past 100m (~20s), LV.3 past 300m (~45s), clear at 500m (~65s).
+- Level thresholds: LV.2 past 50m (~7s), LV.3 past 150m (~17s), clear at 240m (~24s).
+
+## Instant retry lockout (CORE-05)
+
+After driving a run to `cleared` or `gameover` (either scenario above), verify
+the 0.4s retry lockout (`GAME_CONFIG.retryLockout`):
+
+1. Immediately after the terminal phase is reached, click the retry/start
+   button (`page.$$("button")[0]`) or tap the play area.
+2. Assert the terminal overlay is still showing (`document.body.innerText`
+   still contains "GAME OVER" or "GOAL!") — the tap during the lockout window
+   must **not** restart the run.
+3. Wait ~450ms (past the 0.4s lockout).
+4. Click/tap again and assert the overlay is gone and the HUD distance reads
+   `0m` — the run has restarted straight into `running` (never back through
+   the `ready` screen).

@@ -20,8 +20,7 @@ obstacle/item cast remains planned
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
-500 meters up the main street (240 meters after the planned P6 short-run
-retune — `SPEC-ROADMAP › P6`). Poco sprints from the bakery through the old
+240 meters up the main street. Poco sprints from the bakery through the old
 town, weaves through the crowded market, and charges up the castle road with
 the cake box held high. Bumping into anything ruins the cake; scattered coins
 (the townsfolk cheering him on) sweeten the score.

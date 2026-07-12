@@ -9,22 +9,21 @@ code: [src/App.tsx, src/gameLogic.ts]
 
 ## Pitch
 
-Status: partial — mechanics and pixel-art theme implemented (P0–P5); the P6
-short-run retune and P7/P8 drop-in image theming below are planned
+Status: partial — mechanics, pixel-art theme, and the P6 short-run retune
+implemented (P0–P6); P7/P8 drop-in image theming below are planned
 
-vertical-rush is a mobile-first, one-session (60–90 s) vertical lane runner:
-tap the left or right half of the screen to switch between 3 lanes, dodge
-obstacles scrolling toward you, and reach the goal 500 m ahead. One hit ends
-the run.
+vertical-rush is a mobile-first, casual vertical lane runner: tap the left or
+right half of the screen to switch between 3 lanes, dodge obstacles scrolling
+toward you, and reach the goal 240 m ahead — one run takes **20–30 s**. One hit
+ends the run, and a finished run restarts with a single tap in under a second
+(`SPEC-CORE › CORE-05`), so play becomes a rapid loop of short bursts chasing a
+persisted best score (`CORE-06`).
 
 The build renders a pixel-art (dot-anime) fantasy town: the player sprints
 through the town of Karamell at golden hour, from the old town through the
 market street up to the castle gate. See `SPEC-WORLD` for the full concept.
 
-**Planned direction (P6–P8, `SPEC-ROADMAP`):** the game leans fully casual —
-one run compresses to **20–30 s (240 m)** and a finished run restarts with a
-single tap in under a second, so play becomes a rapid loop of short bursts
-chasing a persisted best score. Independently, the whole look becomes
+**Planned direction (P7–P8, `SPEC-ROADMAP`):** the whole look becomes
 swappable by replacing three fixed-name PNGs (`SPEC-RENDER › RND-08`), so new
 worlds are an art drop, not a code change.
 
@@ -35,7 +34,7 @@ Status: implemented (terms in current code) / planned where marked
 | Term | Meaning |
 |---|---|
 | lane | One of 3 vertical tracks (`0` left, `1` center, `2` right) |
-| distance | Meters progressed, the run's sole progress metric; clear at `TARGET_DISTANCE` (500 today; 240 planned, P6) |
+| distance | Meters progressed, the run's sole progress metric; clear at `TARGET_DISTANCE` (240) |
 | speed | Distance units (m) per second, set by the current zone/level |
 | safe lane | The lane guaranteed free of obstacles in each spawned row (`sim.safeLane`) |
 | row | One spawn event: obstacles placed at the same y, leaving the safe lane open |
