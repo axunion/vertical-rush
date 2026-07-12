@@ -127,8 +127,7 @@ coin trail and asserts the HUD counter.
 
 ## P5 — Content & difficulty pass
 
-Status: partial — table-driven zones, the zone-keyed `SPAWN_TABLE`, and `gem`
-landed; zone transitions, movers, and audio additions remain planned
+Status: implemented
 
 **Scope:**
 - Table-driven zones (`SPEC-CORE › CORE-03` `ZONE_TABLE`, test-first rewrite
@@ -140,10 +139,17 @@ landed; zone transitions, movers, and audio additions remain planned
   lane). *(implemented: `src/entities.ts` `SPAWN_TABLE`, `pickWeighted`,
   `positionGem`, `shouldSpawnGem`)*
 - Zone transition presentation (palette crossfade, landmark props,
-  castle-gate goal — `SPEC-CORE › zone transitions`, `WLD-05`). *(planned)*
+  castle-gate goal — `SPEC-CORE › zone transitions`, `WLD-05`). *(implemented:
+  `src/App.tsx` `ZONE_PALETTES`/`frameColors`; `src/render.ts`
+  `lerpHexColor`, `ZONE_LANDMARKS`/`drawZoneLandmark`, `drawCastleGate`,
+  `drawBanner`'s zone-name retitle)*
 - Movers (`stray-cat`, `chicken-flock`, `rolling-barrel` with `ENT-INV-2`).
-  *(planned)*
-- SFX additions (clear bell, crash noise), BGM (`AUD-03`). *(planned)*
+  *(implemented: `src/entities.ts` `BehaviorDef` dart/walker/roller,
+  `moverTargetLane`, `attachDartMotion`, `positionChickenFlock`, `stepMover`;
+  `src/render.ts` `cat`/`chicken`/`barrel` fallback shapes)*
+- SFX additions (clear bell, crash noise), BGM (`AUD-03`). *(implemented:
+  `src/audio.ts` createSfx's clear bell/gameOver noise burst,
+  `startBgm`/`setBgmZone`/`setBgmDucked`/`stopBgm`)*
 
 **Completion criteria:**
 - Zone boundaries and speeds match `CORE-03` exactly (boundary tests updated

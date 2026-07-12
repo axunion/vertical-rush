@@ -1,5 +1,5 @@
 import type { EntityDef, EntityInstance, FallbackShape } from "./entities";
-import type { Box } from "./gameLogic";
+import { type Box, ZONE_TABLE } from "./gameLogic";
 import {
   type FrameRect,
   frameAt,
@@ -63,16 +63,33 @@ function cachedBy<V>(cache: Map<string, V>, key: string, compute: () => V): V {
   return value;
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
 const alphaCache = new Map<string, string>();
 
 /** Memoized: called every frame with a fixed set of palette hex/alpha pairs. */
 function withAlpha(hex: string, alpha: number): string {
   return cachedBy(alphaCache, `${hex}|${alpha}`, () => {
-    const r = Number.parseInt(hex.slice(1, 3), 16);
-    const g = Number.parseInt(hex.slice(3, 5), 16);
-    const b = Number.parseInt(hex.slice(5, 7), 16);
+    const { r, g, b } = hexToRgb(hex);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   });
+}
+
+/** Linearly interpolates two `#RRGGBB` colors at `t` in [0,1] — the zone-transition palette crossfade (`SPEC-CORE › zone transitions`). */
+export function lerpHexColor(a: string, b: string, t: number): string {
+  const pa = hexToRgb(a);
+  const pb = hexToRgb(b);
+  const channel = (from: number, to: number) =>
+    Math.round(from + (to - from) * t)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${channel(pa.r, pb.r)}${channel(pa.g, pb.g)}${channel(pa.b, pb.b)}`;
 }
 
 /** The 1px ink outline shared by every chunky pixel shape (RND-07). */
@@ -493,7 +510,10 @@ function getGoalCheckerPattern(
   });
 }
 
-export function drawGoalLine(
+const CASTLE_GATE_TOWER_H = 28;
+
+/** WLD-05: the goal line as a road-spanning castle gate — flanking stone towers with a torch-flame accent, a drawbridge-deck checkered threshold. */
+export function drawCastleGate(
   c: CanvasRenderingContext2D,
   view: View,
   remainingPx: number,
@@ -501,8 +521,20 @@ export function drawGoalLine(
   colors: RenderColors,
 ): void {
   const y = view.h * playerYRatio - remainingPx;
-  if (y < -16 || y > view.h + 16) {
+  if (y < -CASTLE_GATE_TOWER_H - 16 || y > view.h + 16) {
     return;
+  }
+  const towerW = Math.max(10, view.roadPad * 1.4);
+  const towerY = y - CASTLE_GATE_TOWER_H + GOAL_CHECKER_CELL;
+  for (const towerX of [view.roadPad - towerW, view.w - view.roadPad]) {
+    c.fillStyle = colors.duskPurple;
+    c.fillRect(towerX, towerY, towerW, CASTLE_GATE_TOWER_H);
+    strokeInset(c, towerX, towerY, towerW, CASTLE_GATE_TOWER_H, colors.ink);
+    // Torch flame: a flat gold square with a warm-white ember core (no blur, RND-07 style).
+    c.fillStyle = colors.gold;
+    c.fillRect(towerX + towerW * 0.35, towerY + 4, 4, 4);
+    c.fillStyle = colors.warmWhite;
+    c.fillRect(towerX + towerW * 0.35 + 1, towerY + 5, 2, 2);
   }
   const pattern = getGoalCheckerPattern(c, colors);
   if (pattern) {
@@ -514,6 +546,97 @@ export function drawGoalLine(
     c.fillStyle = colors.warmWhite;
   }
   c.fillRect(view.roadPad, y, view.w - view.roadPad * 2, GOAL_CHECKER_CELL * 2);
+}
+
+/**
+ * SPEC-CORE zone transitions: one landmark prop scrolls past at each zone
+ * boundary, keyed to the same `ZONE_TABLE` distances the crossfade/banner
+ * trigger on — `town-gate-arch` at old-town's exit, `market-banner` at
+ * market-street's exit.
+ */
+export const ZONE_LANDMARKS: readonly {
+  atDistance: number;
+  kind: "town-gate-arch" | "market-banner";
+}[] = [
+  { atDistance: ZONE_TABLE[0].upTo, kind: "town-gate-arch" },
+  { atDistance: ZONE_TABLE[1].upTo, kind: "market-banner" },
+];
+
+const LANDMARK_BAND_H = 20;
+
+function drawTownGateArch(
+  c: CanvasRenderingContext2D,
+  view: View,
+  y: number,
+  colors: RenderColors,
+): void {
+  const pillarW = Math.max(8, view.roadPad * 1.1);
+  for (const pillarX of [view.roadPad - pillarW, view.w - view.roadPad]) {
+    c.fillStyle = colors.cobbleLight;
+    c.fillRect(pillarX, y, pillarW, LANDMARK_BAND_H);
+    strokeInset(c, pillarX, y, pillarW, LANDMARK_BAND_H, colors.ink);
+  }
+  // Header beam spanning the road, closing the arch.
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(
+    view.roadPad - pillarW,
+    y,
+    view.w - view.roadPad * 2 + pillarW * 2,
+    6,
+  );
+  strokeInset(
+    c,
+    view.roadPad - pillarW,
+    y,
+    view.w - view.roadPad * 2 + pillarW * 2,
+    6,
+    colors.ink,
+  );
+}
+
+function drawMarketBanner(
+  c: CanvasRenderingContext2D,
+  view: View,
+  y: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.rustRed;
+  c.fillRect(view.roadPad, y, view.w - view.roadPad * 2, 10);
+  strokeInset(c, view.roadPad, y, view.w - view.roadPad * 2, 10, colors.ink);
+  const pennantW = 10;
+  c.fillStyle = colors.gold;
+  for (
+    let x = view.roadPad + 4;
+    x < view.w - view.roadPad;
+    x += pennantW * 1.6
+  ) {
+    c.beginPath();
+    c.moveTo(x, y + 10);
+    c.lineTo(x + pennantW / 2, y + 16);
+    c.lineTo(x + pennantW, y + 10);
+    c.closePath();
+    c.fill();
+  }
+}
+
+/** Dispatches to the landmark's drawer if its scroll position is currently onscreen. */
+export function drawZoneLandmark(
+  c: CanvasRenderingContext2D,
+  view: View,
+  remainingPx: number,
+  playerYRatio: number,
+  kind: "town-gate-arch" | "market-banner",
+  colors: RenderColors,
+): void {
+  const y = view.h * playerYRatio - remainingPx;
+  if (y < -LANDMARK_BAND_H - 4 || y > view.h + 4) {
+    return;
+  }
+  if (kind === "town-gate-arch") {
+    drawTownGateArch(c, view, y, colors);
+  } else {
+    drawMarketBanner(c, view, y, colors);
+  }
 }
 
 /** Rounds a logical Box to integer pixel coordinates for crisp, un-antialiased canvas draws. */
@@ -543,6 +666,12 @@ export function drawFallback(
     drawCoinShape(c, x, y, w, h, colors);
   } else if (shape === "gem") {
     drawGemShape(c, x, y, w, h, colors);
+  } else if (shape === "cat") {
+    drawCatShape(c, x, y, w, h, colors);
+  } else if (shape === "chicken") {
+    drawChickenShape(c, x, y, w, h, colors);
+  } else if (shape === "barrel") {
+    drawBarrelShape(c, x, y, w, h, colors);
   } else {
     drawRunnerShape(c, x, y, w, h, colors, animTime);
   }
@@ -622,6 +751,60 @@ function drawGemShape(
   c.stroke();
   c.fillStyle = colors.warmWhite;
   c.fillRect(x + w * 0.4, y + h * 0.2, w * 0.2, h * 0.2);
+}
+
+/** Napping/hopping stray cat: low body, triangular ears, a curled tail. */
+function drawCatShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.terracotta;
+  c.fillRect(x + w * 0.1, y + h * 0.35, w * 0.8, h * 0.55);
+  strokeInset(c, x + w * 0.1, y + h * 0.35, w * 0.8, h * 0.55, colors.ink);
+  c.fillRect(x + w * 0.12, y, w * 0.18, h * 0.35);
+  c.fillRect(x + w * 0.55, y, w * 0.18, h * 0.35);
+  c.fillRect(x - w * 0.08, y + h * 0.35, w * 0.2, h * 0.18);
+  c.fillStyle = colors.ink;
+  c.fillRect(x + w * 0.68, y + h * 0.48, 2, 2);
+}
+
+/** One chicken-flock bird: round white body, gold comb, terracotta beak. */
+function drawChickenShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.warmWhite;
+  c.fillRect(x + w * 0.15, y + h * 0.3, w * 0.7, h * 0.6);
+  strokeInset(c, x + w * 0.15, y + h * 0.3, w * 0.7, h * 0.6, colors.ink);
+  c.fillStyle = colors.gold;
+  c.fillRect(x + w * 0.35, y, w * 0.3, h * 0.3);
+  c.fillStyle = colors.terracotta;
+  c.fillRect(x + w * 0.68, y + h * 0.45, w * 0.22, h * 0.12);
+}
+
+/** Rolling ale barrel: wood-brown body with two gold hoop bands. */
+function drawBarrelShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(x + w * 0.1, y, w * 0.8, h);
+  strokeInset(c, x + w * 0.1, y, w * 0.8, h, colors.ink);
+  c.fillStyle = colors.gold;
+  c.fillRect(x + w * 0.1, y + h * 0.25, w * 0.8, h * 0.08);
+  c.fillRect(x + w * 0.1, y + h * 0.67, w * 0.8, h * 0.08);
 }
 
 function drawRunnerShape(
@@ -784,6 +967,11 @@ export function drawParticles(
   c.globalAlpha = 1;
 }
 
+/** "market-street" -> "MARKET STREET" (SPEC-CORE zone transitions banner retitle). */
+function zoneDisplayName(zoneId: string): string {
+  return zoneId.replace(/-/g, " ").toUpperCase();
+}
+
 export function drawBanner(
   c: CanvasRenderingContext2D,
   view: View,
@@ -796,16 +984,20 @@ export function drawBanner(
   if (bannerTime <= 0) {
     return;
   }
+  const zone = ZONE_TABLE.find((z) => z.level === level);
+  const title = zone
+    ? `ZONE ${level} — ${zoneDisplayName(zone.id)}`
+    : `ZONE ${level}`;
   const t = bannerTime / bannerDuration;
   c.globalAlpha = Math.min(1, t * 2.5);
   c.textAlign = "center";
   const titleY = view.h * 0.3 - (1 - t) * 12;
   const subY = view.h * 0.3 + view.w * 0.055;
-  c.font = `italic 900 ${Math.round(view.w * 0.09)}px ${font}`;
+  c.font = `italic 900 ${Math.round(view.w * 0.05)}px ${font}`;
   c.fillStyle = colors.ink;
-  c.fillText(`LEVEL ${level}`, view.w / 2 + 1, titleY + 1);
+  c.fillText(title, view.w / 2 + 1, titleY + 1);
   c.fillStyle = colors.gold;
-  c.fillText(`LEVEL ${level}`, view.w / 2, titleY);
+  c.fillText(title, view.w / 2, titleY);
   c.font = `700 ${Math.round(view.w * 0.045)}px ${font}`;
   c.fillStyle = colors.ink;
   c.fillText("SPEED UP!", view.w / 2 + 1, subY + 1);
@@ -874,7 +1066,19 @@ export function renderFrame(
   drawCurbs(c, view, sim.bgOffset, config.colors);
   drawLaneLines(c, view, config.laneCount, sim.bgOffset, config.colors);
   drawSpeedLines(c, sim.speedLines, config.colors);
-  drawGoalLine(c, view, remainingGoalPx, config.playerYRatio, config.colors);
+  for (const landmark of ZONE_LANDMARKS) {
+    const remainingLandmarkPx =
+      (landmark.atDistance - sim.distance) * (view.h * config.speedRatio);
+    drawZoneLandmark(
+      c,
+      view,
+      remainingLandmarkPx,
+      config.playerYRatio,
+      landmark.kind,
+      config.colors,
+    );
+  }
+  drawCastleGate(c, view, remainingGoalPx, config.playerYRatio, config.colors);
   for (const obs of sim.obstacles) {
     drawEntity(c, obs, defs[obs.defId], config.colors, sheets, sim.animTime);
   }

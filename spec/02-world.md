@@ -14,8 +14,9 @@ same entity ids.
 ## World concept: "Poco's Special Delivery"
 
 Status: partial — palette/theme implemented (P2); Poco's sprite sheet
-implemented (P3); the `coin` item landed in P4, `gem` in P5; the obstacle cast
-beyond P2's two remains planned (movers, P5)
+implemented (P3); the `coin` item landed in P4, `gem` and the three movers
+(`stray-cat`/`chicken-flock`/`rolling-barrel`) in P5; only the post-P5
+obstacle/item cast remains planned
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
@@ -67,8 +68,9 @@ src/sprites.ts, src/render.ts drawPlayer)
 
 ## Obstacle cast
 
-Status: partial — `market-crate`/`hay-cart` implemented (P2); the rest is
-planned per the phase column
+Status: partial — `market-crate`/`hay-cart` implemented (P2); `stray-cat`/
+`chicken-flock`/`rolling-barrel` implemented (P5); the rest is planned per the
+phase column
 
 Design-level roster. `WLD-01`: every obstacle row here has a matching registry
 row in `SPEC-ENTITIES › ENT-02` with the same id; neither table may gain an id
@@ -78,9 +80,9 @@ the other lacks (a `planned` stub row is enough).
 |---|---|---|---|---|
 | `market-crate` | stacked wooden apple crates | static, 1 lane (successor of the current single obstacle) | all | **P2** |
 | `hay-cart` | parked hay wagon | static, 2 adjacent lanes (themed reuse of the existing all-open-lanes spawn) | all | **P2** |
-| `stray-cat` | napping orange cat | wakes with a 0.5 s crouch telegraph, then hops one lane sideways over 0.3 s | old-town, market-street | P5 |
-| `chicken-flock` | 3 chickens crossing the street | staggered walkers crossing all lanes with gaps between birds | old-town, market-street | P5 |
-| `rolling-barrel` | runaway ale barrel | scrolls at 1.5× world speed down its lane (fast approach) | castle-road | P5 |
+| `stray-cat` | napping orange cat | wakes with a 0.5 s crouch telegraph, then hops one lane sideways over 0.3 s toward a lane that isn't the row's safe lane (or stays put if none qualifies) | old-town, market-street | **P5** |
+| `chicken-flock` | 3 chickens, staggered vertically behind one another | each bird independently drifts at 90 px/s toward the same lane-adjacent, non-safe target lane — a diagonal crossing rather than a literal full-road sweep | old-town, market-street | **P5** |
+| `rolling-barrel` | runaway ale barrel | scrolls at 1.5× world speed down its lane (fast approach) | castle-road | **P5** |
 | `town-guard` | guard on patrol | scrolls at 0.6× world speed (player slowly catches up — teaches relative speed) | market-street, castle-road | post-P5 |
 | `fountain` | round stone fountain | static, center lane only, taller than one row (forces early commitment) | market-street | post-P5 |
 | `banner-arch` | low festival banner spanning the street | full-row visual with one open lane — a themed skin of the safe-lane row, not new logic | castle-road | post-P5 |
@@ -130,19 +132,20 @@ Particle colors move to `gold` / `warm-white` / `terracotta` (dust) and
 
 ## Art style rules
 
-Status: partial — `WLD-03`/`WLD-04` implemented (P2); `WLD-05` (castle gate
-sprite) planned, unscheduled
+Status: implemented — `WLD-03`/`WLD-04` (P2), `WLD-05` (P5, src/render.ts
+drawCastleGate)
 
 - `WLD-03` Pixel art on a 16 px background tile grid at the 180×320 logical
   resolution (`SPEC-RENDER › RND-01`); sprites use the sizes in
   `SPEC-ENTITIES › ENT-02`. No anti-aliasing, no gradients inside sprites,
   1 px `ink` outlines on characters and interactive objects.
 - `WLD-04` Scenery (cobblestone road, hedge/stone curbs, house fronts, the
-  castle gate goal) is drawn by named background painters, not entities — see
-  `SPEC-RENDER › RND-06`.
+  castle gate goal, zone landmark props) is drawn by named background
+  painters, not entities — see `SPEC-RENDER › RND-06`.
 - `WLD-05` The goal line becomes the **castle gate**: a road-spanning gate
-  sprite (drawbridge chains, torch glow). Poco's `victory` animation plays in
-  front of it on clear.
+  (flanking stone towers, a flat-color torch-flame accent, the checkered
+  drawbridge-deck threshold) drawn by `src/render.ts` `drawCastleGate`. Poco's
+  `victory` animation plays in front of it on clear.
 - Typography: HUD/overlay text may keep the current sans-serif stack for now;
   an embedded pixel font is an optional post-P5 refinement. UI display text
   remains Japanese; spec and code text are English.

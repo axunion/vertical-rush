@@ -19,8 +19,14 @@ Status: partial — see the per-invariant markers
   *(implemented via the safe-lane random walk in `src/entities.ts` `spawnRow`;
   preserved by construction in all future spawn logic)*
 - `ENT-INV-2` A moving obstacle never enters the current safe lane while
-  within 1.5 player heights (vertically) of the player row. *(planned — binds
-  from the first mover in P5)*
+  within 1.5 player heights (vertically) of the player row. *(implemented,
+  P5: `src/entities.ts` `moverTargetLane` computes each mover's post-motion
+  lane at spawn time as an inbounds neighbor that isn't the row's safe lane —
+  or the mover's own lane if no such neighbor exists, so it simply doesn't
+  move sideways. The final resting x is fixed well before the mover's slow
+  telegraph/hop/drift completes and it scrolls into range of the player, so
+  the invariant holds by construction, the same pattern `ENT-INV-1`/
+  `ENT-INV-3` already use)*
 - `ENT-INV-3` Items are always optional: collecting requires a deliberate lane
   choice and skipping one is never punished. Items spawn only in the safe lane
   of their row. *(implemented — `src/entities.ts` `positionCoinTrail` and
@@ -65,11 +71,11 @@ export type CollisionEffect =
 // Planned additive members (do NOT implement before their roadmap phase):
 //   | { kind: "shield" }   | { kind: "slow"; factor: number; durationSec: number }
 
-export type BehaviorDef = { kind: "static" };
-// Planned additive members (post-P4; parameters finalized when scheduled):
-//   | { kind: "dart"; telegraphSec: number; hopSec: number }
-//   | { kind: "walker"; crossSpeed: number }
-//   | { kind: "roller"; speedFactor: number }
+export type BehaviorDef =
+  | { kind: "static" }
+  | { kind: "dart"; telegraphSec: number; hopSec: number } // stray-cat: crouch, then hop toward `targetX`
+  | { kind: "walker"; crossSpeed: number } // chicken-flock: constant px/s drift toward `targetX`
+  | { kind: "roller"; speedFactor: number }; // rolling-barrel: scrolls at speedFactor x the base scroll
 
 export interface EntityDef {
   id: string; // stable kebab-case slug, shared with SPEC-WORLD
@@ -85,6 +91,13 @@ export interface EntityDef {
 export interface EntityInstance extends Box {
   defId: string;
   lane: number;
+  // Movers only (ENT-INV-2); absent for static entities. `targetX` is
+  // precomputed at spawn by `moverTargetLane` to never equal the row's safe
+  // lane, so the invariant holds by construction.
+  moveTime?: number;
+  targetX?: number;
+  moveSpeed?: number;
+  moveDelay?: number;
 }
 ```
 
@@ -96,9 +109,12 @@ calls, particles) stays in the shell — the registry never imports UI code
 ## Entity registry
 
 Status: partial — `market-crate`/`hay-cart` implemented (P2); `coin`
-implemented (P4); `gem` implemented (P5, src/entities.ts ENTITY_DEFS); movers
-(`stray-cat`/`chicken-flock`/`rolling-barrel`) are the rest of P5's scope,
-still planned
+implemented (P4); `gem` implemented (P5); movers (`stray-cat`/
+`chicken-flock`/`rolling-barrel`) implemented (P5, `src/entities.ts`
+`ENTITY_DEFS`, `moverTargetLane`, `attachDartMotion`, `positionChickenFlock`,
+`stepMover`) — the rest of the registry (post-P5 cast: `town-guard`,
+`fountain`, `banner-arch`, `sweet-roll`, `hourglass`, `magnet`) remains
+planned per `SPEC-ROADMAP`
 
 `ENT-02` — **source of truth** for mechanical values. Ids pair 1:1 with
 `SPEC-WORLD` (`WLD-01`). Sizes are logical px on the 180×320 grid
@@ -108,9 +124,9 @@ still planned
 |---|---|---|---|---|---|---|---|---|
 | `market-crate` | obstacle | 38×24 | 1 | static | crash | 40 | all | **P2** |
 | `hay-cart` | obstacle | 80×32 | 2 | static | crash | 20 | all | **P2** |
-| `stray-cat` | obstacle | 16×12 | 1 | dart (telegraph 0.5 s, hop 0.3 s) | crash | 15 | old-town, market-street | P5 |
-| `chicken-flock` | obstacle | 3 birds, 12×12 each | crosses all | walker | crash | 12 | old-town, market-street | P5 |
-| `rolling-barrel` | obstacle | 20×20 | 1 | roller (1.5× world speed) | crash | 10 | castle-road | P5 |
+| `stray-cat` | obstacle | 16×12 | 1 | dart (telegraph 0.5 s, hop 0.3 s) | crash | 15 | old-town, market-street | **P5** |
+| `chicken-flock` | obstacle | 3 birds, 12×12 each, staggered `CHICKEN_FLOCK.spacingM` (0.6 m) apart | 1 (each bird) | walker (crossSpeed 90 px/s) | crash | 12 | old-town, market-street | **P5** |
+| `rolling-barrel` | obstacle | 20×20 | 1 | roller (speedFactor 1.5×) | crash | 10 | castle-road | **P5** |
 | `town-guard` | obstacle | 16×24 | 1 | roller (0.6× world speed) | crash | 8 | market-street, castle-road | post-P5 |
 | `fountain` | obstacle | 40×40 | 1 (center only) | static | crash | 5 | market-street | post-P5 |
 | `banner-arch` | obstacle | visual 156×24; hitbox 38×24 per blocked lane | full row | static | crash | scripted | castle-road | post-P5 |
@@ -129,15 +145,20 @@ occupying 2 lanes (same practical effect: one row can block 2 of 3 lanes).
 `positionObstacleRow` (P5): a blockAll row whose two blocked lanes are
 **adjacent** weighted-picks one 2-lane obstacle (`ENTITY_DEFS` filtered to
 `lanes === 2`, currently only `hay-cart`) centered between them; non-adjacent
-lanes each independently weighted-pick a 1-lane obstacle (currently only
-`market-crate`). The weighted pick is keyed by `SPAWN_TABLE[zoneId].obstacles`,
-so it stays a no-op today (one candidate per lane count) but needs no shell
-changes when movers add more 1-lane candidates (`ENT-05`).
+lanes each independently weighted-pick a 1-lane obstacle. The weighted pick is
+keyed by `SPAWN_TABLE[zoneId].obstacles`, so adding `stray-cat`/
+`chicken-flock`/`rolling-barrel` as more 1-lane candidates needed no change to
+this dispatch shape (`ENT-05`) — only two additive branches: a `stray-cat`
+pick attaches dart-hop motion (`attachDartMotion`) to the single placed
+instance, and a `chicken-flock` pick calls `positionChickenFlock` to return
+`CHICKEN_FLOCK.count` staggered instances instead of one. The function's
+signature grew `safeLane`/`laneCount`/`pxPerMeter` params to support this —
+existing static-only obstacles ignore them.
 
 ## Spawning
 
-Status: partial — the zone-keyed `SPAWN_TABLE` and its consumers are
-implemented (P5); movers (`ENT-INV-2`) are the remaining planned piece
+Status: implemented — the zone-keyed `SPAWN_TABLE`, its consumers, and movers
+(`ENT-INV-2`) are all implemented (P5)
 
 Canonical (`src/entities.ts`):
 
@@ -168,8 +189,9 @@ export const SPAWN_TABLE: Record<string /* zone id, SPEC-CORE › CORE-03 */, Zo
   (`advanceObstacles`).
 - Blocked lanes are filled by `positionObstacleRow`, weighted-picking from
   `SPAWN_TABLE[zoneId].obstacles` filtered to the lane count needed (`ENT-05`
-  extensibility contract; today only one candidate exists per lane count, so
-  behavior is unchanged from the pre-P5 hardcoded rule).
+  extensibility contract). `old-town`/`market-street` add `stray-cat`/
+  `chicken-flock` to the base `market-crate`/`hay-cart` pool; `castle-road`
+  adds `rolling-barrel` instead.
 - `ENT-03` **Coin trail rule** (`src/entities.ts` `COIN_TRAIL`,
   `positionCoinTrail`, `rollsCoinTrail`): when a row rolls under the active
   zone's `SPAWN_TABLE[zoneId].itemChance` (0.6, flat across zones today),
@@ -187,8 +209,28 @@ export const SPAWN_TABLE: Record<string /* zone id, SPEC-CORE › CORE-03 */, Zo
   as the coin trail.
 - 2-lane entities (`hay-cart`) require 2 adjacent non-safe lanes; when the
   safe lane is the center lane, fall back to a 1-lane pick.
-- Movers (P5, still planned) must respect `ENT-INV-2`; the spawn generator
-  stays pure and deterministic given the injected rng.
+- **Movers** (P5, `src/entities.ts` `moverTargetLane`/`attachDartMotion`/
+  `positionChickenFlock`/`stepMover`): a picked mover's post-motion lane is
+  `moverTargetLane(lane, safeLane, laneCount)` — an inbounds neighbor of its
+  spawn lane that isn't the row's safe lane, or its own lane if no such
+  neighbor exists (it then simply doesn't move sideways). This is computed
+  once at spawn, so `ENT-INV-2` holds by construction, the same pattern
+  `ENT-INV-1`/`ENT-INV-3` already use — no runtime distance-to-player check is
+  needed.
+  - `stray-cat` (dart): stays at its spawn x for `telegraphSec` (0.5 s), then
+    moves to `targetX` over `hopSec` (0.3 s) at a constant px/s rate.
+  - `chicken-flock` (walker): spawns `CHICKEN_FLOCK.count` (3) birds in the
+    same lane, staggered `CHICKEN_FLOCK.spacingM` (0.6 m) apart behind the
+    row's leading edge (mirrors `COIN_TRAIL`'s stagger), each drifting toward
+    the same shared `targetX` at a constant `crossSpeed` (90 px/s) with no
+    telegraph delay.
+  - `rolling-barrel` (roller): no lateral motion; `advanceObstacles` scrolls
+    it at `speedFactor` (1.5×) the base scroll instead of 1×, so it closes
+    distance on the player faster than the world scroll ("fast approach").
+  - All three keep the spawn generator pure and deterministic given the
+    injected rng; `dt`-driven position stepping lives in `advanceObstacles`,
+    which defaults `dt`/`defs` so pre-existing static-only call sites are
+    unaffected.
 
 ## Collection mechanics
 

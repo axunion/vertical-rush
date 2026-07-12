@@ -26,6 +26,7 @@ import {
   SPAWN_GAP,
   spawnGapForZone,
   TARGET_DISTANCE,
+  ZONE_TABLE,
   zoneRangeAt,
 } from "./gameLogic";
 import {
@@ -37,11 +38,14 @@ import {
   type DisplayFit,
   emitDust,
   emitSparks,
+  type FrameConfig,
+  lerpHexColor,
   loadSpriteSheets,
   type OffscreenSurface,
   type Particle,
   type PlayerAnimState,
   paintLetterbox,
+  type RenderColors,
   renderFrame,
   type SheetImages,
   type SpeedLine,
@@ -98,6 +102,8 @@ const GAME_CONFIG = {
   idle: { scrollRatio: 0.06, animRate: 0.8 },
   shake: { duration: 0.45, magnitude: 7 },
   bannerDuration: 1.2,
+  /** SPEC-CORE zone transitions: road/sky crossfade duration on a zone change. */
+  zoneCrossfadeDuration: 2,
   font: '"Avenir Next", Futura, "Trebuchet MS", sans-serif',
   colors: {
     ink: "#33272E",
@@ -114,6 +120,39 @@ const GAME_CONFIG = {
     duskTeal: "#3E6B73",
   },
 } as const;
+
+/** SPEC-CORE zone transitions / CORE-03 palette shift: road+sky colors per zone, crossfaded over `zoneCrossfadeDuration` on a zone change. Replaces the single flat road entries in `GAME_CONFIG.colors` for these three keys. */
+const ZONE_PALETTES: Record<
+  string,
+  Pick<RenderColors, "cobbleMid" | "cobbleLight" | "duskPurple">
+> = {
+  "old-town": {
+    // golden afternoon — matches GAME_CONFIG.colors' base values.
+    cobbleMid: "#8D7B84",
+    cobbleLight: "#B5A6A8",
+    duskPurple: "#5B4A68",
+  },
+  "market-street": {
+    // saturated: warmer curb (awning/lantern glow).
+    cobbleMid: "#967D6E",
+    cobbleLight: "#C4A16B",
+    duskPurple: "#4A3A52",
+  },
+  "castle-road": {
+    // dusk: cooler road, deeper sky, torch-glow accents.
+    cobbleMid: "#6E6478",
+    cobbleLight: "#9088A6",
+    duskPurple: "#332B4A",
+  },
+};
+
+/** Each zone's fully-merged steady-state colors, precomputed once so a mid-run frame outside a crossfade never re-spreads `GAME_CONFIG.colors` (60x/sec). */
+const ZONE_STEADY_COLORS: Record<string, RenderColors> = Object.fromEntries(
+  Object.entries(ZONE_PALETTES).map(([zoneId, palette]) => [
+    zoneId,
+    { ...GAME_CONFIG.colors, ...palette },
+  ]),
+);
 
 type GamePhase = "ready" | "running" | "cleared" | "gameover";
 
@@ -172,6 +211,11 @@ export default function App() {
     bgOffset: 0,
     prevLevel: 1,
     bannerTime: 0,
+    /** SPEC-CORE zone transitions: the zone crossfading FROM, and seconds remaining in that crossfade. */
+    zoneFadeFrom: ZONE_TABLE[0].id,
+    zoneFadeTime: 0,
+    /** AUD-03: whether the BGM is currently ducked for a showing zone banner. */
+    bgmDucked: false,
     dustCarry: 0,
     playerAnimState: "idle" as PlayerAnimState,
     playerAnimStateTime: 0,
@@ -223,6 +267,9 @@ export default function App() {
     sim.shakeTime = 0;
     sim.prevLevel = 1;
     sim.bannerTime = 0;
+    sim.zoneFadeFrom = ZONE_TABLE[0].id;
+    sim.zoneFadeTime = 0;
+    sim.bgmDucked = false;
     sim.dustCarry = 0;
     sim.playerAnimState = "idle";
     sim.playerAnimStateTime = 0;
@@ -238,6 +285,7 @@ export default function App() {
     setCoins(0);
     setCollectedScore(0);
     setPhase("running");
+    sfx.startBgm(ZONE_TABLE[0].id);
   };
 
   const moveLane = (dir: -1 | 1) => {
@@ -287,7 +335,10 @@ export default function App() {
       ...positionObstacleRow(
         zone.id,
         result.blockedLanes,
+        sim.safeLane,
+        GAME_CONFIG.laneCount,
         laneCenterX,
+        pxPerUnit(),
         Math.random,
       ),
     );
@@ -329,6 +380,7 @@ export default function App() {
   const crash = (player: Box) => {
     setPhase("gameover");
     sfx.gameOver();
+    sfx.stopBgm();
     sim.shakeTime = GAME_CONFIG.shake.duration;
     emitSparks(
       sim.sparks,
@@ -349,10 +401,18 @@ export default function App() {
     sim.animTime += dt * animSpeedFactor(info.level);
 
     if (info.level !== sim.prevLevel) {
+      sim.zoneFadeFrom =
+        ZONE_TABLE.find((z) => z.level === sim.prevLevel)?.id ??
+        sim.zoneFadeFrom;
+      sim.zoneFadeTime = GAME_CONFIG.zoneCrossfadeDuration;
       sim.prevLevel = info.level;
       setLevel(info.level);
       sim.bannerTime = GAME_CONFIG.bannerDuration;
       sfx.levelUp();
+      const toZone = ZONE_TABLE.find((z) => z.level === info.level);
+      if (toZone) {
+        sfx.setBgmZone(toZone.id);
+      }
     }
 
     setDistance(Math.floor(sim.distance));
@@ -370,11 +430,12 @@ export default function App() {
     if (isGameCleared(sim.distance, GAME_CONFIG.targetDistance)) {
       setPhase("cleared");
       sfx.clear();
+      sfx.stopBgm();
       return;
     }
 
     const player = playerBox();
-    if (advanceObstacles(sim.obstacles, scroll, view.h, player)) {
+    if (advanceObstacles(sim.obstacles, scroll, view.h, player, dt)) {
       crash(player);
       return;
     }
@@ -411,6 +472,12 @@ export default function App() {
     updateParticles(sim.sparks, dt, GAME_CONFIG.particles.spark.gravity);
     sim.shakeTime = Math.max(0, sim.shakeTime - dt);
     sim.bannerTime = Math.max(0, sim.bannerTime - dt);
+    sim.zoneFadeTime = Math.max(0, sim.zoneFadeTime - dt);
+    const bannerShowing = sim.bannerTime > 0;
+    if (bannerShowing !== sim.bgmDucked) {
+      sim.bgmDucked = bannerShowing;
+      sfx.setBgmDucked(bannerShowing);
+    }
     const lineSpeed = running
       ? runningLevel.speed * GAME_CONFIG.speedLines.speedFactor
       : GAME_CONFIG.speedLines.idleSpeed;
@@ -453,13 +520,44 @@ export default function App() {
     }
   };
 
+  /** SPEC-CORE zone transitions: the current zone's road/sky colors, crossfaded from `sim.zoneFadeFrom` over `zoneCrossfadeDuration`. Only builds a fresh object during the ~2s crossfade window; steady state returns the precomputed `ZONE_STEADY_COLORS` entry. */
+  const frameColors = (): RenderColors => {
+    const toZoneId = zoneRangeAt(sim.distance).zone.id;
+    if (sim.zoneFadeTime <= 0) {
+      return ZONE_STEADY_COLORS[toZoneId];
+    }
+    const t = 1 - sim.zoneFadeTime / GAME_CONFIG.zoneCrossfadeDuration;
+    const from = ZONE_PALETTES[sim.zoneFadeFrom];
+    const to = ZONE_PALETTES[toZoneId];
+    return {
+      ...GAME_CONFIG.colors,
+      cobbleMid: lerpHexColor(from.cobbleMid, to.cobbleMid, t),
+      cobbleLight: lerpHexColor(from.cobbleLight, to.cobbleLight, t),
+      duskPurple: lerpHexColor(from.duskPurple, to.duskPurple, t),
+    };
+  };
+
+  // Built once; render() only ever swaps `.colors` instead of allocating a
+  // fresh FrameConfig every frame (every other field is static per session).
+  const frameConfig: FrameConfig = {
+    targetDistance: GAME_CONFIG.targetDistance,
+    speedRatio: GAME_CONFIG.speedRatio,
+    playerYRatio: GAME_CONFIG.playerYRatio,
+    laneCount: GAME_CONFIG.laneCount,
+    shake: GAME_CONFIG.shake,
+    bannerDuration: GAME_CONFIG.bannerDuration,
+    font: GAME_CONFIG.font,
+    colors: GAME_CONFIG.colors,
+  };
+
   const render = () => {
+    frameConfig.colors = frameColors();
     renderFrame(offscreen.ctx, {
       view,
       sim,
       player: playerBox(),
       level: level(),
-      config: GAME_CONFIG,
+      config: frameConfig,
       defs: ENTITY_DEFS,
       sheets,
     });

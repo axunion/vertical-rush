@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   advanceItems,
   advanceObstacles,
+  CHICKEN_FLOCK,
   COIN_TRAIL,
   ENTITY_DEFS,
   type EntityInstance,
@@ -109,6 +110,79 @@ describe("advanceObstacles", () => {
     expect(crashed).toBe(true);
     expect(obstacles).toHaveLength(1);
   });
+
+  it("scrolls a roller (rolling-barrel) at its speedFactor times the base scroll", () => {
+    const obstacles: EntityInstance[] = [
+      { defId: "rolling-barrel", lane: 0, x: 0, y: 0, width: 20, height: 20 },
+    ];
+    advanceObstacles(obstacles, 10, 320, player, 0.016);
+    expect(obstacles[0].y).toBe(15); // speedFactor 1.5
+  });
+
+  it("leaves a dart (stray-cat) at its spawn x during the telegraph window", () => {
+    const obstacles: EntityInstance[] = [
+      {
+        defId: "stray-cat",
+        lane: 0,
+        x: 30,
+        y: 0,
+        width: 16,
+        height: 12,
+        targetX: 82,
+        moveSpeed: (82 - 30) / 0.3,
+        moveDelay: 0.5,
+      },
+    ];
+    advanceObstacles(obstacles, 0, 320, player, 0.2);
+    expect(obstacles[0].x).toBe(30);
+  });
+
+  it("moves a dart (stray-cat) to targetX once the telegraph+hop window elapses", () => {
+    const obstacles: EntityInstance[] = [
+      {
+        defId: "stray-cat",
+        lane: 0,
+        x: 30,
+        y: 0,
+        width: 16,
+        height: 12,
+        targetX: 82,
+        moveSpeed: (82 - 30) / 0.3,
+        moveDelay: 0.5,
+      },
+    ];
+    advanceObstacles(obstacles, 0, 320, player, 0.5); // past telegraph
+    advanceObstacles(obstacles, 0, 320, player, 0.3); // full hop duration
+    expect(obstacles[0].x).toBe(82);
+  });
+
+  it("steps a walker (chicken-flock) toward targetX at crossSpeed and clamps on arrival", () => {
+    const obstacles: EntityInstance[] = [
+      {
+        defId: "chicken-flock",
+        lane: 0,
+        x: 30,
+        y: 0,
+        width: 12,
+        height: 12,
+        targetX: 82,
+        moveSpeed: 90,
+        moveDelay: 0,
+      },
+    ];
+    advanceObstacles(obstacles, 0, 320, player, 0.1);
+    expect(obstacles[0].x).toBeCloseTo(39);
+    advanceObstacles(obstacles, 0, 320, player, 10); // far past arrival
+    expect(obstacles[0].x).toBe(82);
+  });
+
+  it("leaves static obstacles (no targetX) untouched by mover stepping", () => {
+    const obstacles: EntityInstance[] = [
+      { defId: "market-crate", lane: 0, x: 30, y: 0, width: 38, height: 24 },
+    ];
+    advanceObstacles(obstacles, 0, 320, player, 0.5);
+    expect(obstacles[0].x).toBe(30);
+  });
 });
 
 describe("pickWeighted", () => {
@@ -131,27 +205,76 @@ describe("pickWeighted", () => {
 });
 
 describe("SPAWN_TABLE", () => {
-  it("has an entry for every zone with market-crate/hay-cart obstacles and a coin item", () => {
+  it("has an entry for every zone with a coin item", () => {
     for (const zoneId of ["old-town", "market-street", "castle-road"]) {
       const zoneSpawn = SPAWN_TABLE[zoneId];
-      expect(zoneSpawn.obstacles.map((r) => r.defId).sort()).toEqual([
-        "hay-cart",
-        "market-crate",
-      ]);
       expect(zoneSpawn.items).toEqual([{ defId: "coin", weight: 1 }]);
       expect(zoneSpawn.itemChance).toBeGreaterThan(0);
     }
+  });
+
+  it("adds stray-cat/chicken-flock to old-town and market-street only (ENT-02)", () => {
+    for (const zoneId of ["old-town", "market-street"]) {
+      const ids = new Set(SPAWN_TABLE[zoneId].obstacles.map((r) => r.defId));
+      expect([...ids].sort()).toEqual([
+        "chicken-flock",
+        "hay-cart",
+        "market-crate",
+        "stray-cat",
+      ]);
+    }
+    const castleIds = SPAWN_TABLE["castle-road"].obstacles.map((r) => r.defId);
+    expect(castleIds).not.toContain("stray-cat");
+    expect(castleIds).not.toContain("chicken-flock");
+  });
+
+  it("keeps market-crate's total old-town/market-street weight at 40, split across two refs bracketing the movers", () => {
+    for (const zoneId of ["old-town", "market-street"]) {
+      const marketCrateWeight = SPAWN_TABLE[zoneId].obstacles
+        .filter((r) => r.defId === "market-crate")
+        .reduce((sum, r) => sum + r.weight, 0);
+      expect(marketCrateWeight).toBe(40);
+    }
+  });
+
+  it("adds rolling-barrel to castle-road only (ENT-02)", () => {
+    expect(
+      SPAWN_TABLE["castle-road"].obstacles.map((r) => r.defId).sort(),
+    ).toEqual(["hay-cart", "market-crate", "rolling-barrel"]);
+    for (const zoneId of ["old-town", "market-street"]) {
+      expect(SPAWN_TABLE[zoneId].obstacles.map((r) => r.defId)).not.toContain(
+        "rolling-barrel",
+      );
+    }
+  });
+
+  it("still resolves a single-lane pick to market-crate at both rng extremes (guards the verify skill's deterministic rng=0/0.9 scenarios)", () => {
+    const oneLaneRefs = SPAWN_TABLE["old-town"].obstacles.filter(
+      (r) => r.defId !== "hay-cart",
+    );
+    expect(pickWeighted(oneLaneRefs, () => 0)).toBe("market-crate");
+    expect(pickWeighted(oneLaneRefs, () => 0.9)).toBe("market-crate");
   });
 });
 
 describe("positionObstacleRow", () => {
   const laneCenterX = (lane: number) => 30 + lane * 100;
-  // Today only market-crate (lanes:1) and hay-cart (lanes:2) exist per zone, so
-  // the weighted pick is deterministic regardless of rng until movers land.
+  const laneCount = 3;
+  const pxPerMeter = 35.2;
+  // rng = 0 always lands in the first ref's weight share, so market-crate/hay-cart
+  // (the largest weights) are picked deterministically regardless of rng.
   const rng = () => 0;
 
   it("places one market-crate per blocked lane when a single lane is blocked", () => {
-    const [obs] = positionObstacleRow("old-town", [2], laneCenterX, rng);
+    const [obs] = positionObstacleRow(
+      "old-town",
+      [2],
+      1,
+      laneCount,
+      laneCenterX,
+      pxPerMeter,
+      rng,
+    );
     const { size } = ENTITY_DEFS["market-crate"];
     expect(obs).toEqual({
       defId: "market-crate",
@@ -164,7 +287,15 @@ describe("positionObstacleRow", () => {
   });
 
   it("places one hay-cart centered across two adjacent blocked lanes", () => {
-    const result = positionObstacleRow("old-town", [0, 1], laneCenterX, rng);
+    const result = positionObstacleRow(
+      "old-town",
+      [0, 1],
+      2,
+      laneCount,
+      laneCenterX,
+      pxPerMeter,
+      rng,
+    );
     const { size } = ENTITY_DEFS["hay-cart"];
     const centerX = (laneCenterX(0) + laneCenterX(1)) / 2;
     expect(result).toEqual([
@@ -180,12 +311,134 @@ describe("positionObstacleRow", () => {
   });
 
   it("places two market-crates when the blocked lanes are not adjacent", () => {
-    const result = positionObstacleRow("old-town", [0, 2], laneCenterX, rng);
+    const result = positionObstacleRow(
+      "old-town",
+      [0, 2],
+      1,
+      laneCount,
+      laneCenterX,
+      pxPerMeter,
+      rng,
+    );
     expect(result.map((o) => o.defId)).toEqual([
       "market-crate",
       "market-crate",
     ]);
     expect(result.map((o) => o.lane)).toEqual([0, 2]);
+  });
+
+  // oneLaneRefs (in order) = market-crate(20), stray-cat(15), chicken-flock(12),
+  // market-crate(20); total 67. A roll of 0.4*67 = 26.8 lands past the first
+  // market-crate's [0,20) share, inside stray-cat's [20,35) share.
+  const strayCatRng = () => 0.4;
+
+  it("gives stray-cat a hop target adjacent to its lane, avoiding the safe lane (ENT-INV-2)", () => {
+    const [obs] = positionObstacleRow(
+      "old-town",
+      [0],
+      2, // safe lane
+      laneCount,
+      laneCenterX,
+      pxPerMeter,
+      strayCatRng,
+    );
+    expect(obs.defId).toBe("stray-cat");
+    const { size } = ENTITY_DEFS["stray-cat"];
+    const behavior = ENTITY_DEFS["stray-cat"].behavior;
+    if (behavior.kind !== "dart") {
+      throw new Error("expected stray-cat to use the dart behavior");
+    }
+    // lane 0's only inbounds neighbor is lane 1 (safe lane is 2), so it hops there.
+    expect(obs.targetX).toBe(laneCenterX(1) - size.w / 2);
+    expect(obs.targetX).not.toBe(laneCenterX(2) - size.w / 2);
+    expect(obs.moveDelay).toBe(behavior.telegraphSec);
+    if (obs.targetX === undefined) {
+      throw new Error("expected stray-cat to have a hop targetX");
+    }
+    expect(obs.moveSpeed).toBeCloseTo(
+      Math.abs(obs.targetX - obs.x) / behavior.hopSec,
+    );
+  });
+
+  it("leaves stray-cat in place when both lane neighbors are unavailable", () => {
+    // lane 1's neighbors are 0 and 2; safe lane 0 rules one out, and here the
+    // other (2) is also excluded by being out of a 2-lane road (laneCount 2).
+    const [obs] = positionObstacleRow(
+      "old-town",
+      [1],
+      0,
+      2,
+      laneCenterX,
+      pxPerMeter,
+      strayCatRng,
+    );
+    expect(obs.defId).toBe("stray-cat");
+    expect(obs.targetX).toBeUndefined();
+    expect(obs.moveSpeed).toBeUndefined();
+  });
+
+  // A roll of 0.6*67 = 40.2 lands inside chicken-flock's [35,47) share.
+  const chickenRng = () => 0.6;
+
+  it("spawns CHICKEN_FLOCK.count staggered chicken-flock birds sharing one drift target", () => {
+    const result = positionObstacleRow(
+      "old-town",
+      [0],
+      2, // safe lane
+      laneCount,
+      laneCenterX,
+      pxPerMeter,
+      chickenRng,
+    );
+    expect(result).toHaveLength(CHICKEN_FLOCK.count);
+    const { size } = ENTITY_DEFS["chicken-flock"];
+    const behavior = ENTITY_DEFS["chicken-flock"].behavior;
+    if (behavior.kind !== "walker") {
+      throw new Error("expected chicken-flock to use the walker behavior");
+    }
+    const expectedTargetX = laneCenterX(1) - size.w / 2;
+    for (const [i, bird] of result.entries()) {
+      expect(bird.defId).toBe("chicken-flock");
+      expect(bird.lane).toBe(0);
+      expect(bird.x).toBe(laneCenterX(0) - size.w / 2);
+      expect(bird.targetX).toBe(expectedTargetX);
+      expect(bird.targetX).not.toBe(laneCenterX(2) - size.w / 2);
+      expect(bird.moveSpeed).toBe(behavior.crossSpeed);
+      expect(bird.y).toBe(-i * CHICKEN_FLOCK.spacingM * pxPerMeter - size.h);
+    }
+  });
+
+  it("ENT-INV-2: never rests a stray-cat or a chicken-flock bird in the row's safe lane, swept across every lane/safeLane pair", () => {
+    for (let lane = 0; lane < laneCount; lane++) {
+      for (let safeLane = 0; safeLane < laneCount; safeLane++) {
+        if (safeLane === lane) {
+          continue; // blockedLanes never include the safe lane (ENT-INV-1)
+        }
+        const [cat] = positionObstacleRow(
+          "old-town",
+          [lane],
+          safeLane,
+          laneCount,
+          laneCenterX,
+          pxPerMeter,
+          strayCatRng,
+        );
+        const restingCatX = cat.targetX ?? cat.x;
+        expect(restingCatX).not.toBe(laneCenterX(safeLane) - cat.width / 2);
+
+        const [bird] = positionObstacleRow(
+          "old-town",
+          [lane],
+          safeLane,
+          laneCount,
+          laneCenterX,
+          pxPerMeter,
+          chickenRng,
+        );
+        const restingBirdX = bird.targetX ?? bird.x;
+        expect(restingBirdX).not.toBe(laneCenterX(safeLane) - bird.width / 2);
+      }
+    }
   });
 });
 
@@ -214,6 +467,41 @@ describe("ENTITY_DEFS", () => {
       kind: "collect",
       score: 50,
       sfx: "coin",
+    });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint and dart behavior for stray-cat", () => {
+    expect(ENTITY_DEFS["stray-cat"].size).toEqual({ w: 16, h: 12 });
+    expect(ENTITY_DEFS["stray-cat"].lanes).toBe(1);
+    expect(ENTITY_DEFS["stray-cat"].behavior).toEqual({
+      kind: "dart",
+      telegraphSec: 0.5,
+      hopSec: 0.3,
+    });
+    expect(ENTITY_DEFS["stray-cat"].onCollision).toEqual({ kind: "crash" });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint and walker behavior for chicken-flock", () => {
+    expect(ENTITY_DEFS["chicken-flock"].size).toEqual({ w: 12, h: 12 });
+    expect(ENTITY_DEFS["chicken-flock"].lanes).toBe(1);
+    expect(ENTITY_DEFS["chicken-flock"].behavior).toEqual({
+      kind: "walker",
+      crossSpeed: 90,
+    });
+    expect(ENTITY_DEFS["chicken-flock"].onCollision).toEqual({
+      kind: "crash",
+    });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint and roller behavior for rolling-barrel", () => {
+    expect(ENTITY_DEFS["rolling-barrel"].size).toEqual({ w: 20, h: 20 });
+    expect(ENTITY_DEFS["rolling-barrel"].lanes).toBe(1);
+    expect(ENTITY_DEFS["rolling-barrel"].behavior).toEqual({
+      kind: "roller",
+      speedFactor: 1.5,
+    });
+    expect(ENTITY_DEFS["rolling-barrel"].onCollision).toEqual({
+      kind: "crash",
     });
   });
 });

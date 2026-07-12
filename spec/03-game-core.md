@@ -118,14 +118,31 @@ its start/end span (`zoneRangeAt`) — after an initial 6 m delay
 
 ## Zone transitions
 
-Status: planned (P5); the 1.2 s banner + levelUp jingle are implemented today
+Status: implemented (P5: src/App.tsx ZONE_PALETTES, sim.zoneFadeFrom/
+zoneFadeTime, frameColors; src/render.ts lerpHexColor, drawBanner,
+ZONE_LANDMARKS/drawZoneLandmark, drawCastleGate)
 
-On crossing a zone boundary: keep the existing banner (retitled
-`ZONE 2 — MARKET STREET` / `SPEED UP!`) and levelUp jingle, add a 2 s linear
-crossfade of road/curb colors between the zones' palettes, and scroll one
-landmark prop past (town gate arch → market banner → castle wall corner).
-Zone palettes live in a per-zone color block replacing today's single
-`GAME_CONFIG.colors` road entries.
+On crossing a zone boundary: the existing 1.2 s banner (retitled
+`ZONE 2 — MARKET STREET` / `SPEED UP!`, via `src/render.ts` `drawBanner`
+looking up the zone name from `ZONE_TABLE`) and levelUp jingle fire as before;
+additionally, a 2 s linear crossfade (`GAME_CONFIG.zoneCrossfadeDuration`,
+`src/render.ts` `lerpHexColor`) blends the road/curb/sky colors
+(`cobbleMid`/`cobbleLight`/`duskPurple`) from the previous zone's
+`ZONE_PALETTES` entry to the new one's; and one landmark prop scrolls past,
+keyed to the same `ZONE_TABLE` boundary distances a `drawGoalLine`-style
+distance-to-screen-y computation uses (`src/render.ts` `ZONE_LANDMARKS`,
+`drawZoneLandmark`): a town gate arch at old-town's exit (100 m), a market
+banner at market-street's exit (300 m). Zone palettes live in
+`src/App.tsx` `ZONE_PALETTES`, a per-zone color block that only overrides the
+three road/sky keys — all other `GAME_CONFIG.colors` entries (entity colors,
+UI) stay flat across zones per `WLD-02`.
+
+The castle-gate goal (`SPEC-WORLD › WLD-05`) is drawn by the same function
+that used to be the plain checkered goal line, now `src/render.ts`
+`drawCastleGate`: flanking stone towers with a flat-color torch-flame accent
+(no blur, per `RND-07`'s no-gradient rule) plus the original checkered
+drawbridge-deck threshold strip. Poco's `victory` animation still plays in
+front of it on clear (unchanged from `SPEC-WORLD › Protagonist`).
 
 ## Score
 

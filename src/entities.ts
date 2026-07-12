@@ -10,9 +10,21 @@ export type CollisionEffect =
   | { kind: "crash" }
   | { kind: "collect"; score: number; sfx: SfxId };
 
-export type BehaviorDef = { kind: "static" };
+export type BehaviorDef =
+  | { kind: "static" }
+  | { kind: "dart"; telegraphSec: number; hopSec: number }
+  | { kind: "walker"; crossSpeed: number }
+  | { kind: "roller"; speedFactor: number };
 
-export type FallbackShape = "runner" | "crate" | "cart" | "coin" | "gem";
+export type FallbackShape =
+  | "runner"
+  | "crate"
+  | "cart"
+  | "coin"
+  | "gem"
+  | "cat"
+  | "chicken"
+  | "barrel";
 
 export interface EntityDef {
   id: string;
@@ -28,6 +40,18 @@ export interface EntityDef {
 export interface EntityInstance extends Box {
   defId: string;
   lane: number;
+  /**
+   * Movers only (ENT-INV-2): the lane-center x this instance drifts/hops
+   * toward, its constant px/s step rate once moving, and a countdown (the
+   * telegraph) before it starts, ticking down to 0/negative in
+   * `advanceObstacles`. `targetX` is precomputed at spawn to never equal the
+   * row's safe lane, so the invariant holds by construction — `stepMover`
+   * just counts down `moveDelay` then steps toward `targetX`. Absent for
+   * static entities.
+   */
+  targetX?: number;
+  moveSpeed?: number;
+  moveDelay?: number;
 }
 
 export const ENTITY_DEFS: Record<string, EntityDef> = {
@@ -71,6 +95,36 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     fallback: "gem",
     onCollision: { kind: "collect", score: 50, sfx: "coin" },
   },
+  "stray-cat": {
+    id: "stray-cat",
+    category: "obstacle",
+    size: { w: 16, h: 12 },
+    lanes: 1,
+    behavior: { kind: "dart", telegraphSec: 0.5, hopSec: 0.3 },
+    sprite: null,
+    fallback: "cat",
+    onCollision: { kind: "crash" },
+  },
+  "chicken-flock": {
+    id: "chicken-flock",
+    category: "obstacle",
+    size: { w: 12, h: 12 },
+    lanes: 1,
+    behavior: { kind: "walker", crossSpeed: 90 },
+    sprite: null,
+    fallback: "chicken",
+    onCollision: { kind: "crash" },
+  },
+  "rolling-barrel": {
+    id: "rolling-barrel",
+    category: "obstacle",
+    size: { w: 20, h: 20 },
+    lanes: 1,
+    behavior: { kind: "roller", speedFactor: 1.5 },
+    sprite: null,
+    fallback: "barrel",
+    onCollision: { kind: "crash" },
+  },
 };
 
 /** ENT-03: coin trail geometry, in meters measured behind the row's leading edge. Flat across zones. */
@@ -78,6 +132,12 @@ export const COIN_TRAIL = {
   count: 3,
   leadGapM: 2,
   spacingM: 1,
+} as const;
+
+/** ENT-02: chicken-flock geometry, in meters measured behind the row's leading edge (mirrors COIN_TRAIL's stagger idiom). */
+export const CHICKEN_FLOCK = {
+  count: 3,
+  spacingM: 0.6,
 } as const;
 
 export interface WeightedRef {
@@ -93,9 +153,31 @@ export interface ZoneSpawn {
   items: WeightedRef[];
 }
 
-const DEFAULT_OBSTACLES: WeightedRef[] = [
+const BASE_OBSTACLES: WeightedRef[] = [
   { defId: "market-crate", weight: 40 },
   { defId: "hay-cart", weight: 20 },
+];
+
+/**
+ * old-town/market-street add the two street-life movers (ENT-02). `pickWeighted`
+ * assigns each ref a contiguous sub-range of `[0, total)` in array order, so a
+ * ref placed at either end of the array owns whichever sub-range touches 0 or
+ * `total` — `market-crate`'s 40-weight share is split into two 20-weight refs
+ * bracketing the movers so `market-crate` (not a mover) still owns *both*
+ * ends of the range, same combined 40/67 probability as one entry would.
+ */
+const STREET_OBSTACLES: WeightedRef[] = [
+  { defId: "market-crate", weight: 20 },
+  { defId: "stray-cat", weight: 15 },
+  { defId: "chicken-flock", weight: 12 },
+  { defId: "market-crate", weight: 20 },
+  { defId: "hay-cart", weight: 20 },
+];
+
+/** castle-road swaps street movers for the faster rolling-barrel (ENT-02). */
+const CASTLE_ROAD_OBSTACLES: WeightedRef[] = [
+  ...BASE_OBSTACLES,
+  { defId: "rolling-barrel", weight: 10 },
 ];
 
 const DEFAULT_ITEMS: WeightedRef[] = [{ defId: "coin", weight: 1 }];
@@ -103,17 +185,17 @@ const DEFAULT_ITEMS: WeightedRef[] = [{ defId: "coin", weight: 1 }];
 /** ENT-05/CORE-03 — per-zone obstacle/item weights, keyed by ZONE_TABLE zone id. */
 export const SPAWN_TABLE: Record<string, ZoneSpawn> = {
   "old-town": {
-    obstacles: DEFAULT_OBSTACLES,
+    obstacles: STREET_OBSTACLES,
     itemChance: 0.6,
     items: DEFAULT_ITEMS,
   },
   "market-street": {
-    obstacles: DEFAULT_OBSTACLES,
+    obstacles: STREET_OBSTACLES,
     itemChance: 0.6,
     items: DEFAULT_ITEMS,
   },
   "castle-road": {
-    obstacles: DEFAULT_OBSTACLES,
+    obstacles: CASTLE_ROAD_OBSTACLES,
     itemChance: 0.6,
     items: DEFAULT_ITEMS,
   },
@@ -189,10 +271,90 @@ function placeAtLeadingEdge(
   };
 }
 
+/**
+ * ENT-INV-2: picks the lane a mover settles into once it hops/drifts away
+ * from `lane` — an inbounds neighbor that isn't `safeLane` — or `lane` itself
+ * if no such neighbor exists (the mover then doesn't move sideways at all).
+ * With `laneCount` 3 this always resolves deterministically: `lane`'s two
+ * neighbors can include at most one out-of-bounds lane and the safe lane is
+ * never `lane` itself, so exactly zero or one candidate remains.
+ */
+function moverTargetLane(
+  lane: number,
+  safeLane: number,
+  laneCount: number,
+): number {
+  const candidates = [lane - 1, lane + 1].filter(
+    (l) => l >= 0 && l < laneCount && l !== safeLane,
+  );
+  return candidates.length > 0 ? candidates[0] : lane;
+}
+
+/** Attaches dart hop timing to a freshly-placed instance of a "dart"-behavior entity (ENT-INV-2: no-op if `moverTargetLane` found no safe hop target). */
+function attachDartMotion(
+  instance: EntityInstance,
+  def: EntityDef,
+  behavior: Extract<BehaviorDef, { kind: "dart" }>,
+  lane: number,
+  safeLane: number,
+  laneCount: number,
+  laneCenterX: (lane: number) => number,
+): void {
+  const targetLane = moverTargetLane(lane, safeLane, laneCount);
+  if (targetLane === lane) {
+    return;
+  }
+  instance.targetX = placeAtLeadingEdge(
+    def.id,
+    targetLane,
+    laneCenterX(targetLane),
+  ).x;
+  instance.moveSpeed =
+    Math.abs(instance.targetX - instance.x) / behavior.hopSec;
+  instance.moveDelay = behavior.telegraphSec;
+}
+
+/**
+ * Builds CHICKEN_FLOCK.count staggered instances of a "walker"-behavior
+ * entity behind the row's leading edge (mirrors `positionCoinTrail`'s
+ * vertical stagger), all sharing one drift target lane (ENT-INV-2, via
+ * `moverTargetLane`).
+ */
+function positionChickenFlock(
+  def: EntityDef,
+  behavior: Extract<BehaviorDef, { kind: "walker" }>,
+  lane: number,
+  safeLane: number,
+  laneCount: number,
+  laneCenterX: (lane: number) => number,
+  pxPerMeter: number,
+): EntityInstance[] {
+  const targetLane = moverTargetLane(lane, safeLane, laneCount);
+  const spawnX = placeAtLeadingEdge(def.id, lane, laneCenterX(lane)).x;
+  const targetX =
+    targetLane === lane
+      ? spawnX
+      : placeAtLeadingEdge(def.id, targetLane, laneCenterX(targetLane)).x;
+  return Array.from({ length: CHICKEN_FLOCK.count }, (_, i) => ({
+    defId: def.id,
+    lane,
+    x: spawnX,
+    y: -i * CHICKEN_FLOCK.spacingM * pxPerMeter - def.size.h,
+    width: def.size.w,
+    height: def.size.h,
+    targetX,
+    moveSpeed: behavior.crossSpeed,
+    moveDelay: 0,
+  }));
+}
+
 export function positionObstacleRow(
   zoneId: string,
   blockedLanes: readonly number[],
+  safeLane: number,
+  laneCount: number,
   laneCenterX: (lane: number) => number,
+  pxPerMeter: number,
   rng: () => number,
 ): EntityInstance[] {
   const refs = SPAWN_TABLE[zoneId].obstacles;
@@ -214,25 +376,80 @@ export function positionObstacleRow(
       ),
     ];
   }
-  return blockedLanes.map((lane) =>
-    placeAtLeadingEdge(pickWeighted(oneLaneRefs, rng), lane, laneCenterX(lane)),
-  );
+  return blockedLanes.flatMap((lane) => {
+    const defId = pickWeighted(oneLaneRefs, rng);
+    const def = ENTITY_DEFS[defId];
+    const behavior = def.behavior;
+    if (behavior.kind === "walker") {
+      return positionChickenFlock(
+        def,
+        behavior,
+        lane,
+        safeLane,
+        laneCount,
+        laneCenterX,
+        pxPerMeter,
+      );
+    }
+    const instance = placeAtLeadingEdge(defId, lane, laneCenterX(lane));
+    if (behavior.kind === "dart") {
+      attachDartMotion(
+        instance,
+        def,
+        behavior,
+        lane,
+        safeLane,
+        laneCount,
+        laneCenterX,
+      );
+    }
+    return [instance];
+  });
+}
+
+/** Steps a mover's x toward `targetX` at `moveSpeed` px/s once the `moveDelay` countdown (the telegraph) reaches 0; a no-op for static entities (no `targetX`). */
+function stepMover(obs: EntityInstance, dt: number): void {
+  if (obs.targetX === undefined || obs.moveSpeed === undefined) {
+    return;
+  }
+  if (obs.moveDelay !== undefined && obs.moveDelay > 0) {
+    obs.moveDelay -= dt;
+    if (obs.moveDelay > 0) {
+      return;
+    }
+  }
+  const dir = Math.sign(obs.targetX - obs.x);
+  if (dir === 0) {
+    return;
+  }
+  obs.x += dir * obs.moveSpeed * dt;
+  if ((dir > 0 && obs.x >= obs.targetX) || (dir < 0 && obs.x <= obs.targetX)) {
+    obs.x = obs.targetX;
+  }
 }
 
 /**
- * Scrolls obstacles by `scroll`, drops ones that left the view, and reports
- * whether any remaining obstacle now overlaps the player (via the shared
- * `checkCollision`, per CORE-INV-1 — no second hit-detection path).
+ * Scrolls obstacles by `scroll` (rollers use `speedFactor`x that, ENT-02),
+ * steps any mover's lateral position, drops ones that left the view, and
+ * reports whether any remaining obstacle now overlaps the player (via the
+ * shared `checkCollision`, per CORE-INV-1 — no second hit-detection path).
+ * `dt`/`defs` default to a no-op mover step and the real registry, so
+ * existing static-only call sites are unaffected.
  */
 export function advanceObstacles(
   obstacles: EntityInstance[],
   scroll: number,
   viewHeight: number,
   player: Box,
+  dt = 0,
+  defs: Record<string, EntityDef> = ENTITY_DEFS,
 ): boolean {
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const obs = obstacles[i];
-    obs.y += scroll;
+    const behavior = defs[obs.defId]?.behavior;
+    const speedFactor = behavior?.kind === "roller" ? behavior.speedFactor : 1;
+    obs.y += scroll * speedFactor;
+    stepMover(obs, dt);
     if (obs.y > viewHeight) {
       obstacles.splice(i, 1);
       continue;

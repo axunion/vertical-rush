@@ -24,7 +24,8 @@ component cleanup (`dispose`).
 
 ## AUD-02 — SFX catalog
 
-Status: partial — 5 voices implemented (src/audio.ts createSfx); rows marked planned extend the catalog
+Status: implemented — 5 voices (src/audio.ts createSfx), including P5's clear
+bell and gameOver noise burst; rows marked planned extend the catalog
 
 The catalog is keyed by `SfxId`. Canonical (src/audio.ts):
 
@@ -37,8 +38,8 @@ export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
 |---|---|---|---|
 | `dash` | lane switch | current downward sweep (square, 240→90 Hz), volume lowered to ~0.04 (it fires constantly) | implemented (tweak planned, P2) |
 | `levelUp` | zone change banner | current fanfare C5–E5–G5 square | implemented |
-| `clear` | reaching the castle gate | current arpeggio + added low bell (sine 523 Hz, ~1.2 s decay) | implemented (bell planned, P5) |
-| `gameOver` | crash | current sawtooth down-sweep + added white-noise burst (~0.2 s buffer noise) for the pratfall | implemented (noise planned, P5) |
+| `clear` | reaching the castle gate | current arpeggio + a low bell (sine 523 Hz, ~1.2 s decay) | implemented (P5) |
+| `gameOver` | crash | current sawtooth down-sweep + a white-noise burst (~0.2 s buffer noise, exponential decay) for the pratfall | implemented (P5) |
 | `coin` | item collect | two-note ping E6→B6, square wave, ~0.09 s | implemented (P4) |
 | `shieldGet` / `shieldBreak` | effect items | warm major chord / glass pop | planned (post-P5) |
 
@@ -47,11 +48,15 @@ item with a new sound means adding a voice here first.
 
 ## AUD-03 — BGM
 
-Status: planned (P5)
+Status: implemented (P5: src/audio.ts createSfx's startBgm/setBgmZone/
+setBgmDucked/stopBgm; src/App.tsx wiring)
 
 Procedural chip loop scheduled with `AudioContext` look-ahead (the standard
-two-timer pattern): an 8-bar square-wave lead over a triangle bass. Zone
-character comes from tempo, key stays fixed:
+two-timer pattern: a `setInterval` scheduler tops up a `bgmNextStepTime`
+cursor, scheduling exact-time notes `BGM_SCHEDULE_AHEAD_SEC` (0.1 s) ahead of
+`currentTime`): an 8-bar square-wave lead (`BGM_LEAD`) over a triangle bass
+(`BGM_BASS`, one sustained root per bar, an octave down). Zone character
+comes from tempo, key stays fixed:
 
 | zone | tempo |
 |---|---|
@@ -61,9 +66,14 @@ character comes from tempo, key stays fixed:
 
 - Key stays **C major** so the `levelUp` fanfare (C5–E5–G5) always lands
   consonant over the loop.
-- Master BGM gain ~0.04; duck 50% while a zone banner is showing.
-- BGM starts with `running` and stops (release, not hard cut) on
-  `cleared`/`gameover`.
+- Master BGM gain ~0.04 (`BGM_MASTER_GAIN`); ducks 50% while a zone banner is
+  showing (`src/App.tsx` toggles `sfx.setBgmDucked` on `sim.bannerTime`'s
+  edge, not every frame, to avoid redundant gain ramps).
+- BGM starts with `running` (`start()` calls `sfx.startBgm`) and stops
+  (0.4 s linear release, not a hard cut) on `cleared`/`gameover`
+  (`sfx.stopBgm()`, alongside `sfx.clear()`/`sfx.gameOver()`).
+- A zone change re-tempos the loop in place via `setBgmZone` — the melody/bar
+  position keeps playing through, it doesn't restart.
 
 ## AUD-04 — Ambient flavor
 
