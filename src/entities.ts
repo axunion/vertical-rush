@@ -54,6 +54,11 @@ export interface EntityInstance extends Box {
   moveDelay?: number;
 }
 
+/** ENT-06: every ENTITY_DEFS row binds to the `entities` sheet under its own id as the animation name. */
+function entitySprite(id: string): { sheet: string; animation: string } {
+  return { sheet: "entities", animation: id };
+}
+
 export const ENTITY_DEFS: Record<string, EntityDef> = {
   "market-crate": {
     id: "market-crate",
@@ -61,7 +66,7 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     size: { w: 38, h: 24 },
     lanes: 1,
     behavior: { kind: "static" },
-    sprite: null,
+    sprite: entitySprite("market-crate"),
     fallback: "crate",
     onCollision: { kind: "crash" },
   },
@@ -71,7 +76,7 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     size: { w: 80, h: 32 },
     lanes: 2,
     behavior: { kind: "static" },
-    sprite: null,
+    sprite: entitySprite("hay-cart"),
     fallback: "cart",
     onCollision: { kind: "crash" },
   },
@@ -81,7 +86,7 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     size: { w: 12, h: 12 },
     lanes: 1,
     behavior: { kind: "static" },
-    sprite: null,
+    sprite: entitySprite("coin"),
     fallback: "coin",
     onCollision: { kind: "collect", score: 10, sfx: "coin" },
   },
@@ -91,7 +96,7 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     size: { w: 12, h: 12 },
     lanes: 1,
     behavior: { kind: "static" },
-    sprite: null,
+    sprite: entitySprite("gem"),
     fallback: "gem",
     onCollision: { kind: "collect", score: 50, sfx: "coin" },
   },
@@ -101,7 +106,7 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     size: { w: 16, h: 12 },
     lanes: 1,
     behavior: { kind: "dart", telegraphSec: 0.5, hopSec: 0.3 },
-    sprite: null,
+    sprite: entitySprite("stray-cat"),
     fallback: "cat",
     onCollision: { kind: "crash" },
   },
@@ -111,7 +116,7 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     size: { w: 12, h: 12 },
     lanes: 1,
     behavior: { kind: "walker", crossSpeed: 90 },
-    sprite: null,
+    sprite: entitySprite("chicken-flock"),
     fallback: "chicken",
     onCollision: { kind: "crash" },
   },
@@ -121,7 +126,7 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     size: { w: 20, h: 20 },
     lanes: 1,
     behavior: { kind: "roller", speedFactor: 1.5 },
-    sprite: null,
+    sprite: entitySprite("rolling-barrel"),
     fallback: "barrel",
     onCollision: { kind: "crash" },
   },

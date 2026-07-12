@@ -16,6 +16,7 @@ import {
   shouldSpawnGem,
   spawnRow,
 } from "./entities";
+import { SPRITE_SHEETS } from "./sprites";
 
 /** Returns queued values in order; throws if called more times than provided. */
 const queuedRng = (values: number[]) => {
@@ -618,5 +619,25 @@ describe("advanceItems", () => {
 describe("PLAYER_SIZE", () => {
   it("matches the RND-01 logical player sprite size", () => {
     expect(PLAYER_SIZE).toEqual({ w: 24, h: 32 });
+  });
+});
+
+describe("ENT-06 sprite binding", () => {
+  it("binds every entity to the entities sheet with frames matching its own size", () => {
+    for (const def of Object.values(ENTITY_DEFS)) {
+      expect(def.sprite).not.toBeNull();
+      const sprite = def.sprite;
+      if (!sprite) continue;
+      expect(sprite.sheet).toBe("entities");
+      expect(sprite.animation).toBe(def.id);
+      const sheet = SPRITE_SHEETS[sprite.sheet];
+      expect(sheet).toBeDefined();
+      const anim = sheet.animations[sprite.animation];
+      expect(anim).toBeDefined();
+      for (const frame of anim.frames) {
+        expect(frame.w).toBe(def.size.w);
+        expect(frame.h).toBe(def.size.h);
+      }
+    }
   });
 });

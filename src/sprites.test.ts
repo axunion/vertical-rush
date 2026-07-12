@@ -61,4 +61,45 @@ describe("SPRITE_SHEETS", () => {
       }
     }
   });
+
+  it("defines the entities sheet with one band per entity on the RND-08 grid", () => {
+    const SHEET_W = 80;
+    const SHEET_H = 144;
+    const entities = SPRITE_SHEETS.entities;
+    expect(entities.src).toBe("/assets/sheets/entities.png");
+    expect(Object.keys(entities.animations).sort()).toEqual(
+      [
+        "chicken-flock",
+        "coin",
+        "gem",
+        "hay-cart",
+        "market-crate",
+        "rolling-barrel",
+        "stray-cat",
+      ].sort(),
+    );
+
+    const bands = Object.entries(entities.animations).map(([id, anim]) => {
+      const [first] = anim.frames;
+      return { id, y: first.y, h: first.h };
+    });
+
+    for (const anim of Object.values(entities.animations)) {
+      for (const frame of anim.frames) {
+        expect(frame.x).toBeGreaterThanOrEqual(0);
+        expect(frame.x + frame.w).toBeLessThanOrEqual(SHEET_W);
+        expect(frame.y).toBeGreaterThanOrEqual(0);
+        expect(frame.y + frame.h).toBeLessThanOrEqual(SHEET_H);
+      }
+    }
+
+    for (let i = 0; i < bands.length; i++) {
+      for (let j = i + 1; j < bands.length; j++) {
+        const a = bands[i];
+        const b = bands[j];
+        const overlaps = a.y < b.y + b.h && b.y < a.y + a.h;
+        expect(overlaps).toBe(false);
+      }
+    }
+  });
 });

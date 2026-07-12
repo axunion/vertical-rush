@@ -276,7 +276,7 @@ by the first future entity that lands via steps 1–3 alone.
 
 ## Sprite binding
 
-Status: planned (P7)
+Status: implemented (P7, src/entities.ts ENTITY_DEFS, src/sprites.ts SPRITE_SHEETS.entities)
 
 `ENT-06` — Every `ENTITY_DEFS` row binds to the `entities` sprite sheet
 (`SPEC-RENDER › RND-08`) as `sprite: { sheet: "entities", animation: <its own
@@ -288,7 +288,8 @@ id. Rules:
   fallback shape already draws the same Box (`RND-INV-1`), so collision feel
   is identical with or without the PNG.
 - `sprite: null` remains legal and is the required state for entities whose
-  sheet band is not yet specified in `RND-08` (the post-P5 cast).
+  sheet band is not yet specified in `RND-08` — today's 7 `ENTITY_DEFS` rows
+  are all bound; a future entity lands `sprite: null` until its band is added.
 - Unit tests enforce the binding: each non-null `sprite` resolves to an
   existing sheet + animation, and each referenced frame matches `def.size`
   and stays inside the sheet bounds.

@@ -75,9 +75,11 @@ Status: implemented (src/render.ts computeDisplayFit/sizeDisplayCanvas/blitFrame
 
 ## RND-04 — Sprite-sheet manifest
 
-Status: implemented (src/sprites.ts SPRITE_SHEETS, frameAt) — only the `poco`
-sheet is authored so far; the `entities`/`town` sheets are now **normative**,
-with fixed layouts specified in `RND-08` (scheduled: P7 entities, P8 town)
+Status: implemented (src/sprites.ts SPRITE_SHEETS, frameAt) — the `poco` and
+`entities` sheets are both defined; `entities.png` itself is not yet authored
+(`RND-INV-1` fallback still renders until the PNG lands), and the `town` sheet
+remains normative-only, with its fixed layout specified in `RND-08`
+(scheduled: P8)
 
 Canonical (target: `src/sprites.ts`):
 
@@ -214,8 +216,10 @@ mover silhouettes, per `ENT-05`'s extension contract.
 
 ## RND-08 — Fixed asset contract (drop-in theming)
 
-Status: partial — `poco.png` implemented (P3); `entities.png` planned (P7);
-`town.png` planned (P8)
+Status: partial — `poco.png` implemented (P3); `entities.png` layout
+implemented (P7, src/sprites.ts SPRITE_SHEETS.entities, src/entities.ts
+ENTITY_DEFS) — the PNG itself is not yet authored, so `RND-INV-1`'s fallback
+path renders until it lands; `town.png` planned (P8)
 
 A **theme is exactly three PNGs** with fixed filenames and fixed layouts under
 `public/assets/sheets/`. Replacing them (all or some) re-themes the game;

@@ -7,9 +7,10 @@ code: []
 
 # Implementation Roadmap
 
-Ordered phases. **P0–P6 (the pixel-art fantasy town redesign and the
-short-run casual retune) are complete** and kept below as summaries only —
-their full scope text lives in git history. Current work is **P7–P8**: the
+Ordered phases. **P0–P7 (the pixel-art fantasy town redesign, the short-run
+casual retune, and the entity sheet contract) are complete** and kept below as
+summaries only — their full scope text lives in git history. Current work is
+**P8**: the background tile pipeline (`town.png`), the second half of the
 drop-in image theming contract. Each phase is **independently shippable**:
 the game is complete-feeling at every phase boundary. Do not start a phase's
 scope early; specs mark deferred work as `planned (Pn)` for a reason.
@@ -26,12 +27,13 @@ Completion additionally requires flipping the relevant `Status:` lines in
 these specs from `planned (Pn)` to `implemented (module symbol)` in the same
 commit — that is what keeps spec/code drift structurally bounded.
 
-## Completed phases (P0–P6)
+## Completed phases (P0–P7)
 
 Status: implemented
 
 Summaries only; full scope, completion criteria, and verification text is in
-git history (this file, before the P6/P7 rewrites).
+git history (this file, before the P6/P7 rewrites, and before the P7 summary
+fold-in).
 
 - **P0 — Specification suite.** This document set, the `CLAUDE.md`
   spec-sync/tunables-ownership rules, and the README pointer.
@@ -66,39 +68,18 @@ git history (this file, before the P6/P7 rewrites).
   (`CORE-06`: `localStorage` `vertical-rush.best`, shown on both result
   overlays). Structure (3 zones, clear-at-the-gate, one-hit runs) was
   unchanged; only pacing and the retry loop changed.
-
-## P7 — Entity sheet contract (`entities.png`)
-
-Status: planned (P7)
-
-**Goal:** all obstacles and items render from one drop-in sprite sheet when
-it exists. The sheet layout is fixed by `SPEC-RENDER › RND-08`; the game
-stays fully playable without the PNG (`RND-INV-1`).
-
-**Scope:**
-
-- `src/sprites.ts`: add the `entities` `SpriteSheetDef`
-  (src `/assets/sheets/entities.png`), one looping animation per entity named
-  by its entity id, frames per the `RND-08` table, driven by the existing
-  global animation clock `drawEntity` already receives. No per-instance
-  state animations (the cat's twitch loop doubles as its telegraph).
-- `src/entities.ts`: flip all 7 `ENTITY_DEFS` rows from `sprite: null` to
-  `sprite: { sheet: "entities", animation: <id> }` (`SPEC-ENTITIES ›
-  ENT-06`). `drawEntity`'s sprite-or-fallback branch is already implemented —
-  no `render.ts`/`App.tsx` changes.
-- Tests: every `def.sprite` resolves to an existing sheet + animation; every
-  referenced frame's `w`/`h` equals `def.size`; frames stay inside the sheet
-  bounds and bands don't overlap.
-
-**Completion criteria:**
-
-- With `entities.png` present, all obstacles/items animate from the sheet;
-  with it absent, fallback shapes render identically to today.
-- `RND-08` (entities part), `RND-04` note, and `ENT-06` flipped to
-  `implemented`.
-
-**Verification:** the triplet, run **twice** — with assets present and with
-`public/assets/` temporarily moved away (the P3 pattern).
+- **P7 — Entity sheet contract (`entities.png`).** Added the `entities`
+  `SpriteSheetDef` (`src/sprites.ts`, `SPEC-RENDER › RND-08` layout: 80×144,
+  one band per entity) and flipped all 7 `ENTITY_DEFS` rows from
+  `sprite: null` to `sprite: { sheet: "entities", animation: <id> }`
+  (`SPEC-ENTITIES › ENT-06`) — `drawEntity`'s sprite-or-fallback dispatch
+  needed no changes. Authored `public/assets/sheets/entities.png` (Karamell
+  palette, 1px ink outlines, 1-bit alpha; substitutes a safe rust-brown for
+  the palette's `terracotta` on the cat/chicken bands since `terracotta`
+  sits inside the `RND-05` rust-red tolerance box — the theming addendum
+  requires authored art to avoid it, unlike the grandfathered procedural
+  fallback). Verify skill triplet passed twice, with `entities.png` present
+  and with `public/assets/` temporarily renamed away.
 
 ## P8 — Background tile pipeline (`town.png`)
 
