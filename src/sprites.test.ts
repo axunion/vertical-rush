@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type AnimationDef, frameAt, SPRITE_SHEETS } from "./sprites";
+import {
+  type AnimationDef,
+  frameAt,
+  SPRITE_SHEETS,
+  TILE_SHEETS,
+} from "./sprites";
 
 const threeFrames: AnimationDef = {
   frames: [
@@ -98,6 +103,50 @@ describe("SPRITE_SHEETS", () => {
         const a = bands[i];
         const b = bands[j];
         const overlaps = a.y < b.y + b.h && b.y < a.y + a.h;
+        expect(overlaps).toBe(false);
+      }
+    }
+  });
+});
+
+describe("TILE_SHEETS", () => {
+  it("defines the town sheet with all nine RND-08 regions within the 192x128 sheet", () => {
+    const SHEET_W = 192;
+    const SHEET_H = 128;
+    const town = TILE_SHEETS.town;
+    expect(town.src).toBe("/assets/sheets/town.png");
+    expect(Object.keys(town.regions).sort()).toEqual(
+      [
+        "castle-gate",
+        "curb-castle-road",
+        "curb-market-street",
+        "curb-old-town",
+        "market-banner",
+        "road-castle-road",
+        "road-market-street",
+        "road-old-town",
+        "town-gate-arch",
+      ].sort(),
+    );
+    for (const region of Object.values(town.regions)) {
+      expect(region.x).toBeGreaterThanOrEqual(0);
+      expect(region.x + region.w).toBeLessThanOrEqual(SHEET_W);
+      expect(region.y).toBeGreaterThanOrEqual(0);
+      expect(region.y + region.h).toBeLessThanOrEqual(SHEET_H);
+    }
+  });
+
+  it("keeps town regions non-overlapping", () => {
+    const regions = Object.values(TILE_SHEETS.town.regions);
+    for (let i = 0; i < regions.length; i++) {
+      for (let j = i + 1; j < regions.length; j++) {
+        const a = regions[i];
+        const b = regions[j];
+        const overlaps =
+          a.x < b.x + b.w &&
+          b.x < a.x + a.w &&
+          a.y < b.y + b.h &&
+          b.y < a.y + a.h;
         expect(overlaps).toBe(false);
       }
     }

@@ -38,6 +38,13 @@ function pocoRow(row: number, count: number): FrameRect[] {
   );
 }
 
+/** SPEC-RENDER RND-09 tile-region manifest: region rects, no animation semantics. */
+export interface TileSheetDef {
+  id: string;
+  src: string;
+  regions: Record<string, FrameRect>;
+}
+
 export const SPRITE_SHEETS: Record<string, SpriteSheetDef> = {
   poco: {
     id: "poco",
@@ -81,6 +88,25 @@ export const SPRITE_SHEETS: Record<string, SpriteSheetDef> = {
         loop: true,
       },
       gem: { frames: frameBand(128, 12, 12, [0, 12]), fps: 4, loop: true },
+    },
+  },
+};
+
+/** `town.png` layout (RND-08 town.png table): 192x128, region-based, no animation. */
+export const TILE_SHEETS: Record<string, TileSheetDef> = {
+  town: {
+    id: "town",
+    src: "/assets/sheets/town.png",
+    regions: {
+      "road-old-town": { x: 0, y: 0, w: 32, h: 32 },
+      "road-market-street": { x: 32, y: 0, w: 32, h: 32 },
+      "road-castle-road": { x: 64, y: 0, w: 32, h: 32 },
+      "curb-old-town": { x: 96, y: 0, w: 12, h: 32 },
+      "curb-market-street": { x: 112, y: 0, w: 12, h: 32 },
+      "curb-castle-road": { x: 128, y: 0, w: 12, h: 32 },
+      "castle-gate": { x: 0, y: 32, w: 180, h: 48 },
+      "town-gate-arch": { x: 0, y: 80, w: 180, h: 24 },
+      "market-banner": { x: 0, y: 104, w: 180, h: 24 },
     },
   },
 };

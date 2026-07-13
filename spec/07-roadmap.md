@@ -7,13 +7,13 @@ code: []
 
 # Implementation Roadmap
 
-Ordered phases. **P0–P7 (the pixel-art fantasy town redesign, the short-run
-casual retune, and the entity sheet contract) are complete** and kept below as
-summaries only — their full scope text lives in git history. Current work is
-**P8**: the background tile pipeline (`town.png`), the second half of the
-drop-in image theming contract. Each phase is **independently shippable**:
-the game is complete-feeling at every phase boundary. Do not start a phase's
-scope early; specs mark deferred work as `planned (Pn)` for a reason.
+Ordered phases. **P0–P8 (the pixel-art fantasy town redesign, the short-run
+casual retune, and the full drop-in image theming contract) are complete**
+and kept below as summaries only — their full scope text lives in git
+history. All scheduled roadmap work is done; remaining ideas live in the
+unscheduled backlog below. Each phase is **independently shippable**: the
+game is complete-feeling at every phase boundary. Do not start backlog scope
+without first scheduling it into a phase.
 
 Every phase ends with the same verification triplet:
 
@@ -27,7 +27,7 @@ Completion additionally requires flipping the relevant `Status:` lines in
 these specs from `planned (Pn)` to `implemented (module symbol)` in the same
 commit — that is what keeps spec/code drift structurally bounded.
 
-## Completed phases (P0–P7)
+## Completed phases (P0–P8)
 
 Status: implemented
 
@@ -80,43 +80,25 @@ fold-in).
   requires authored art to avoid it, unlike the grandfathered procedural
   fallback). Verify skill triplet passed twice, with `entities.png` present
   and with `public/assets/` temporarily renamed away.
-
-## P8 — Background tile pipeline (`town.png`)
-
-Status: planned (P8)
-
-**Goal:** road, curbs, the castle gate, and zone landmarks render from the
-drop-in `town.png` when it exists (`SPEC-RENDER › RND-08` regions), falling
-back to the current procedural painters when it doesn't. With P7, replacing
-the three PNGs re-themes the whole game (`SPEC-WORLD › WLD-06`).
-
-**Scope:**
-
-- `src/sprites.ts`: `TileSheetDef` + `TILE_SHEETS` per `SPEC-RENDER ›
-  RND-09` (regions reuse `FrameRect`; no animation semantics). Bounds/overlap
-  unit tests.
-- `src/render.ts`: loosen `loadSpriteSheets` input to `{ src: string }`;
-  region → `CanvasPattern` cache; image branches in
-  `drawRoad`/`drawCurbs` (per-zone pattern fill, zone crossfade as a two-pass
-  `globalAlpha` blend of the from/to zone patterns during the existing fade
-  window) and `drawCastleGate`/`drawZoneLandmark` (single `drawImage` each).
-  Missing image → the current procedural path, untouched. Lane lines, speed
-  lines, and particles stay procedural.
-- `src/App.tsx`: load `{ ...SPRITE_SHEETS, ...TILE_SHEETS }` into the
-  existing sheet map; pass the zone-blend state (already tracked for
-  `frameColors`) into the painters.
-
-**Completion criteria:**
-
-- With `town.png` present, road/curbs/gate/landmarks draw from the sheet and
-  the zone transition crossfades between zone tile variants; absent, the
-  procedural painters render identically to today.
-- The RND-05 scan row stays unambiguous with tiles present (the `RND-08`
-  key-color exclusion rule).
-- `RND-08` (town part), `RND-09`, and `WLD-06` flipped to `implemented`.
-
-**Verification:** the triplet, run **twice** — with and without
-`public/assets/` — plus a manual zone-transition screenshot review.
+- **P8 — Background tile pipeline (`town.png`).** Added the `town`
+  `TileSheetDef` (`src/sprites.ts` `TILE_SHEETS`, `SPEC-RENDER › RND-09`
+  region manifest: 192×128, 9 regions — 3 road tiles, 3 curb tiles,
+  `castle-gate`, `town-gate-arch`, `market-banner`) and per-zone image
+  branches in `src/render.ts` `drawRoad`/`drawCurbs` (cached `CanvasPattern`
+  per `sheetId|regionKey`, zone crossfade as a two-pass `globalAlpha` blend
+  of the from/to zone tiles) and `drawCastleGate`/`drawZoneLandmark` (single
+  `drawImage` each, anchored so the gate's drawbridge threshold and the
+  landmark's scroll position match the procedural painters' `y`). Loosened
+  `loadSpriteSheets`'s input type to `{ src: string }` so the shell loads
+  `{ ...SPRITE_SHEETS, ...TILE_SHEETS }`. Every painter keeps its procedural
+  branch (`RND-INV-1`): a missing `town.png` renders exactly as before.
+  Authored `public/assets/sheets/town.png` (Karamell palette, 1-bit alpha,
+  baked-in mortar/outline lines instead of alpha blending; the market-banner
+  region uses `dusk-teal` rather than the procedural fallback's `rust-red`,
+  since `RND-05`'s theming addendum forbids the player key-color's tolerance
+  box in `town.png` art). Verify skill triplet passed twice, with `town.png`
+  present and with `public/assets/` temporarily renamed away, plus a manual
+  zone-transition screenshot review across all three zones.
 
 ## Backlog (unscheduled)
 

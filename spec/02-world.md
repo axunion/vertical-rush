@@ -152,7 +152,7 @@ drawCastleGate)
 
 ## Theme swap
 
-Status: planned (P7 entities, P8 background — `SPEC-ROADMAP`)
+Status: implemented (P7 entities, P8 background — `SPEC-ROADMAP`)
 
 `WLD-06` — The Karamell world above is the **default theme**, not a hard
 dependency. The entire visible world is re-skinnable by replacing the three

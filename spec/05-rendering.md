@@ -1,7 +1,7 @@
 ---
 id: SPEC-RENDER
 title: Rendering (Pixel Pipeline, Sprites, Fallback)
-status: partial
+status: implemented
 code: [src/render.ts, src/sprites.ts, src/App.tsx]
 ---
 
@@ -76,10 +76,8 @@ Status: implemented (src/render.ts computeDisplayFit/sizeDisplayCanvas/blitFrame
 ## RND-04 — Sprite-sheet manifest
 
 Status: implemented (src/sprites.ts SPRITE_SHEETS, frameAt) — the `poco` and
-`entities` sheets are both defined; `entities.png` itself is not yet authored
-(`RND-INV-1` fallback still renders until the PNG lands), and the `town` sheet
-remains normative-only, with its fixed layout specified in `RND-08`
-(scheduled: P8)
+`entities` sheets are both defined and authored; the `town` tile sheet's own
+manifest type and regions are `RND-09` (`src/sprites.ts` `TILE_SHEETS`)
 
 Canonical (target: `src/sprites.ts`):
 
@@ -216,10 +214,12 @@ mover silhouettes, per `ENT-05`'s extension contract.
 
 ## RND-08 — Fixed asset contract (drop-in theming)
 
-Status: partial — `poco.png` implemented (P3); `entities.png` layout
-implemented (P7, src/sprites.ts SPRITE_SHEETS.entities, src/entities.ts
-ENTITY_DEFS) — the PNG itself is not yet authored, so `RND-INV-1`'s fallback
-path renders until it lands; `town.png` planned (P8)
+Status: implemented — `poco.png` (P3), `entities.png` (P7, src/sprites.ts
+SPRITE_SHEETS.entities, src/entities.ts ENTITY_DEFS), and `town.png` (P8,
+src/sprites.ts TILE_SHEETS.town, src/render.ts drawRoad/drawCurbs/
+drawCastleGate/drawZoneLandmark) are all authored under
+`public/assets/sheets/` and loaded; `RND-INV-1`'s fallback path is exercised
+identically whenever any one of the three is absent
 
 A **theme is exactly three PNGs** with fixed filenames and fixed layouts under
 `public/assets/sheets/`. Replacing them (all or some) re-themes the game;
@@ -229,8 +229,8 @@ theme (`SPEC-WORLD › WLD-06`).
 
 ```
 public/assets/sheets/poco.png       # player animations — implemented (P3)
-public/assets/sheets/entities.png   # obstacles + items — planned (P7)
-public/assets/sheets/town.png       # road, curbs, gate, landmarks — planned (P8)
+public/assets/sheets/entities.png   # obstacles + items — implemented (P7)
+public/assets/sheets/town.png       # road, curbs, gate, landmarks — implemented (P8)
 ```
 
 Fallback granularity is **per file** (`RND-INV-1`): a missing/unloadable PNG
@@ -251,7 +251,7 @@ Protagonist`):
 | 3 | 96 | `crash` | 3 |
 | 4 | 128 | `victory` | 2 |
 
-### `entities.png` — obstacles + items (planned, P7)
+### `entities.png` — obstacles + items (implemented, P7)
 
 **80 × 144.** One entity per horizontal band; frames at the entity's native
 logical size (frame w×h **equals** `EntityDef.size` — `SPEC-ENTITIES ›
@@ -280,7 +280,7 @@ transparent. **Source of truth** for the sheet layout:
   **below** y = 144 when their phase schedules them; existing band offsets
   never move.
 
-### `town.png` — background tiles, gate, landmarks (planned, P8)
+### `town.png` — background tiles, gate, landmarks (implemented, P8)
 
 **192 × 128.** Region-based (no animation). Zone ids match `SPEC-CORE ›
 CORE-03`. **Source of truth** for the sheet layout:
@@ -344,7 +344,8 @@ CORE-03`. **Source of truth** for the sheet layout:
 
 ## RND-09 — Tile-region manifest & background image painters
 
-Status: planned (P8)
+Status: implemented (P8, src/sprites.ts TILE_SHEETS, src/render.ts drawRoad/
+drawCurbs/drawCastleGate/drawZoneLandmark)
 
 `town.png` is region-based, not animated, so it gets its own minimal manifest
 type instead of overloading `SpriteSheetDef` with animation semantics.

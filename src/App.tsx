@@ -52,8 +52,9 @@ import {
   sizeDisplayCanvas,
   updateParticles,
   type View,
+  type ZoneBlend,
 } from "./render";
-import { SPRITE_SHEETS } from "./sprites";
+import { SPRITE_SHEETS, TILE_SHEETS } from "./sprites";
 
 const GAME_CONFIG = {
   targetDistance: TARGET_DISTANCE,
@@ -153,6 +154,14 @@ const ZONE_STEADY_COLORS: Record<string, RenderColors> = Object.fromEntries(
   Object.entries(ZONE_PALETTES).map(([zoneId, palette]) => [
     zoneId,
     { ...GAME_CONFIG.colors, ...palette },
+  ]),
+);
+
+/** Each zone's steady-state `ZoneBlend` (fromZoneId === toZoneId, t: 1), precomputed for the same reason as `ZONE_STEADY_COLORS`. */
+const ZONE_STEADY_BLEND: Record<string, ZoneBlend> = Object.fromEntries(
+  Object.keys(ZONE_PALETTES).map((zoneId) => [
+    zoneId,
+    { fromZoneId: zoneId, toZoneId: zoneId, t: 1 },
   ]),
 );
 
@@ -563,25 +572,34 @@ export default function App() {
     }
   };
 
-  /** SPEC-CORE zone transitions: the current zone's road/sky colors, crossfaded from `sim.zoneFadeFrom` over `zoneCrossfadeDuration`. Only builds a fresh object during the ~2s crossfade window; steady state returns the precomputed `ZONE_STEADY_COLORS` entry. */
-  const frameColors = (): RenderColors => {
+  /** SPEC-CORE zone transitions / SPEC-RENDER RND-09: the single source of the zone-crossfade state, shared by the palette crossfade (`frameColors`) and the `town.png` tile crossfade. Only builds a fresh object during the ~2s crossfade window; steady state returns the precomputed `ZONE_STEADY_BLEND` entry. */
+  const frameZoneBlend = (): ZoneBlend => {
     const toZoneId = zoneRangeAt(sim.distance).zone.id;
     if (sim.zoneFadeTime <= 0) {
-      return ZONE_STEADY_COLORS[toZoneId];
+      return ZONE_STEADY_BLEND[toZoneId];
     }
     const t = 1 - sim.zoneFadeTime / GAME_CONFIG.zoneCrossfadeDuration;
-    const from = ZONE_PALETTES[sim.zoneFadeFrom];
-    const to = ZONE_PALETTES[toZoneId];
+    return { fromZoneId: sim.zoneFadeFrom, toZoneId, t };
+  };
+
+  /** The current zone's road/sky colors, derived from `frameZoneBlend`'s output. Only builds a fresh object during the crossfade window; steady state returns the precomputed `ZONE_STEADY_COLORS` entry. */
+  const frameColors = (zoneBlend: ZoneBlend): RenderColors => {
+    if (zoneBlend.t >= 1) {
+      return ZONE_STEADY_COLORS[zoneBlend.toZoneId];
+    }
+    const from = ZONE_PALETTES[zoneBlend.fromZoneId];
+    const to = ZONE_PALETTES[zoneBlend.toZoneId];
     return {
       ...GAME_CONFIG.colors,
-      cobbleMid: lerpHexColor(from.cobbleMid, to.cobbleMid, t),
-      cobbleLight: lerpHexColor(from.cobbleLight, to.cobbleLight, t),
-      duskPurple: lerpHexColor(from.duskPurple, to.duskPurple, t),
+      cobbleMid: lerpHexColor(from.cobbleMid, to.cobbleMid, zoneBlend.t),
+      cobbleLight: lerpHexColor(from.cobbleLight, to.cobbleLight, zoneBlend.t),
+      duskPurple: lerpHexColor(from.duskPurple, to.duskPurple, zoneBlend.t),
     };
   };
 
-  // Built once; render() only ever swaps `.colors` instead of allocating a
-  // fresh FrameConfig every frame (every other field is static per session).
+  // Built once; render() only ever swaps `.colors`/`.zoneBlend` instead of
+  // allocating a fresh FrameConfig every frame (every other field is static
+  // per session).
   const frameConfig: FrameConfig = {
     targetDistance: GAME_CONFIG.targetDistance,
     speedRatio: GAME_CONFIG.speedRatio,
@@ -591,10 +609,13 @@ export default function App() {
     bannerDuration: GAME_CONFIG.bannerDuration,
     font: GAME_CONFIG.font,
     colors: GAME_CONFIG.colors,
+    zoneBlend: ZONE_STEADY_BLEND[ZONE_TABLE[0].id],
   };
 
   const render = () => {
-    frameConfig.colors = frameColors();
+    const zoneBlend = frameZoneBlend();
+    frameConfig.zoneBlend = zoneBlend;
+    frameConfig.colors = frameColors(zoneBlend);
     renderFrame(offscreen.ctx, {
       view,
       sim,
@@ -638,7 +659,7 @@ export default function App() {
     resize();
     resetSim();
     // Fire-and-forget: the game is playable via fallback shapes before/without this resolving (RND-INV-1).
-    loadSpriteSheets(SPRITE_SHEETS).then((loaded) => {
+    loadSpriteSheets({ ...SPRITE_SHEETS, ...TILE_SHEETS }).then((loaded) => {
       sheets = loaded;
     });
     window.addEventListener("resize", resize);

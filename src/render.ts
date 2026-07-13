@@ -5,6 +5,7 @@ import {
   frameAt,
   SPRITE_SHEETS,
   type SpriteSheetDef,
+  TILE_SHEETS,
 } from "./sprites";
 
 /** Fixed logical-pixel geometry (RND-01) — computed once, never touched by resize. */
@@ -46,6 +47,14 @@ export interface RenderColors {
   woodBrown: string;
   leafGreen: string;
   duskTeal: string;
+}
+
+/** SPEC-CORE zone transitions / RND-09 tile crossfade: the zone-transition blend state, shared by the palette crossfade (`RenderColors`) and the `town.png` tile crossfade. */
+export interface ZoneBlend {
+  fromZoneId: string;
+  toZoneId: string;
+  /** 0 = fully `fromZoneId`, 1 = fully `toZoneId` (steady state). */
+  t: number;
 }
 
 /**
@@ -193,7 +202,7 @@ function loadSpriteSheet(src: string): Promise<HTMLImageElement | null> {
 
 /** Loads every sheet in the manifest; per-sheet failures resolve to null instead of rejecting the batch. */
 export function loadSpriteSheets(
-  defs: Record<string, SpriteSheetDef>,
+  defs: Record<string, { src: string }>,
 ): Promise<SheetImages> {
   const ids = Object.keys(defs);
   return Promise.all(ids.map((id) => loadSpriteSheet(defs[id].src))).then(
@@ -400,24 +409,155 @@ function getRoadPattern(
   });
 }
 
-/** Flat road fill plus a scrolling 16px mortar grid (WLD-03 tile grid; no gradients). */
+/** Wraps `value` into `[0, period)` — a defensive double-modulo since a negative `value` (JS's `%` keeps the dividend's sign) must still land in range. */
+function wrapOffset(value: number, period: number): number {
+  return ((value % period) + period) % period;
+}
+
+const tilePatternCache = new Map<string, CanvasPattern | null>();
+// Reused across the road/curb tile draws each frame, same idiom as roadPatternTransform.
+const tilePatternTransform = new DOMMatrix();
+
+/** Crops a `town.png` region into a repeatable CanvasPattern, cached by `regionKey` (RND-09) — the only tile sheet is `town`, so its id isn't threaded through as a param. */
+function getTilePattern(
+  c: CanvasRenderingContext2D,
+  sheet: HTMLImageElement,
+  regionKey: string,
+  region: FrameRect,
+): CanvasPattern | null {
+  return cachedBy(
+    tilePatternCache,
+    `${TILE_SHEETS.town.id}|${regionKey}`,
+    () => {
+      const surface = createOffscreenCanvas(region.w, region.h);
+      if (!surface) {
+        return null;
+      }
+      surface.ctx.drawImage(
+        sheet,
+        region.x,
+        region.y,
+        region.w,
+        region.h,
+        0,
+        0,
+        region.w,
+        region.h,
+      );
+      return c.createPattern(surface.canvas, "repeat");
+    },
+  );
+}
+
+/** Fills `x, 0, w, view.h` with `regionKey`'s tile pattern, scrolled by `offset`, at `alpha`. Returns false if the pattern isn't buildable (RND-INV-1 fallback). */
+function fillTileRegion(
+  c: CanvasRenderingContext2D,
+  sheet: HTMLImageElement,
+  regionKey: string,
+  offset: number,
+  x: number,
+  w: number,
+  view: View,
+  alpha: number,
+): boolean {
+  const region = TILE_SHEETS.town.regions[regionKey];
+  if (!region) {
+    return false;
+  }
+  const pattern = getTilePattern(c, sheet, regionKey, region);
+  if (!pattern) {
+    return false;
+  }
+  tilePatternTransform.f = offset;
+  pattern.setTransform(tilePatternTransform);
+  c.globalAlpha = alpha;
+  c.fillStyle = pattern;
+  c.fillRect(x, 0, w, view.h);
+  c.globalAlpha = 1;
+  return true;
+}
+
+/**
+ * Fills `x, 0, w, view.h` with `regionPrefix`'s zone tile(s) (RND-09): the
+ * previous zone's tile opaque first, then the current zone's tile on top at
+ * `alpha = zoneBlend.t`, so mid-crossfade frames blend the two — steady state
+ * (`t >= 1`) skips the first pass and paints only the current zone. Shared by
+ * `drawRoad` and `drawCurbs`'s per-strip calls. Returns whether every pass
+ * that ran built its pattern successfully (RND-INV-1 fallback trigger).
+ */
+function paintZoneBlendedRegion(
+  c: CanvasRenderingContext2D,
+  sheet: HTMLImageElement,
+  regionPrefix: string,
+  zoneBlend: ZoneBlend,
+  offset: number,
+  x: number,
+  w: number,
+  view: View,
+): boolean {
+  const fromOk =
+    zoneBlend.t >= 1 ||
+    fillTileRegion(
+      c,
+      sheet,
+      `${regionPrefix}-${zoneBlend.fromZoneId}`,
+      offset,
+      x,
+      w,
+      view,
+      1,
+    );
+  const toOk = fillTileRegion(
+    c,
+    sheet,
+    `${regionPrefix}-${zoneBlend.toZoneId}`,
+    offset,
+    x,
+    w,
+    view,
+    zoneBlend.t,
+  );
+  return fromOk && toOk;
+}
+
+/** Flat road fill plus a scrolling 16px mortar grid (WLD-03 tile grid; no gradients), or the `town.png` per-zone road tile when loaded (RND-09). */
 export function drawRoad(
   c: CanvasRenderingContext2D,
   view: View,
   bgOffset: number,
   colors: RenderColors,
+  townSheet: HTMLImageElement | null,
+  zoneBlend: ZoneBlend,
 ): void {
+  const x = view.roadPad;
+  const w = view.w - view.roadPad * 2;
+  if (townSheet) {
+    const period = TILE_SHEETS.town.regions[`road-${zoneBlend.toZoneId}`]?.h;
+    if (
+      period &&
+      paintZoneBlendedRegion(
+        c,
+        townSheet,
+        "road",
+        zoneBlend,
+        wrapOffset(bgOffset, period),
+        x,
+        w,
+        view,
+      )
+    ) {
+      return;
+    }
+  }
   const pattern = getRoadPattern(c, colors);
   if (pattern) {
-    const period = ROAD_TILE * 2;
-    const offset = ((bgOffset % period) + period) % period;
-    roadPatternTransform.f = offset;
+    roadPatternTransform.f = wrapOffset(bgOffset, ROAD_TILE * 2);
     pattern.setTransform(roadPatternTransform);
     c.fillStyle = pattern;
   } else {
     c.fillStyle = colors.cobbleMid;
   }
-  c.fillRect(view.roadPad, 0, view.w - view.roadPad * 2, view.h);
+  c.fillRect(x, 0, w, view.h);
 }
 
 export function drawCurbs(
@@ -425,7 +565,38 @@ export function drawCurbs(
   view: View,
   bgOffset: number,
   colors: RenderColors,
+  townSheet: HTMLImageElement | null,
+  zoneBlend: ZoneBlend,
 ): void {
+  if (townSheet) {
+    const period = TILE_SHEETS.town.regions[`curb-${zoneBlend.toZoneId}`]?.h;
+    if (period) {
+      const offset = wrapOffset(bgOffset, period);
+      const leftOk = paintZoneBlendedRegion(
+        c,
+        townSheet,
+        "curb",
+        zoneBlend,
+        offset,
+        0,
+        view.roadPad,
+        view,
+      );
+      const rightOk = paintZoneBlendedRegion(
+        c,
+        townSheet,
+        "curb",
+        zoneBlend,
+        offset,
+        view.w - view.roadPad,
+        view.roadPad,
+        view,
+      );
+      if (leftOk && rightOk) {
+        return;
+      }
+    }
+  }
   const stripe = 16;
   const curbW = Math.max(6, view.roadPad * 0.6);
   const offset = bgOffset % (stripe * 2);
@@ -512,16 +683,32 @@ function getGoalCheckerPattern(
 
 const CASTLE_GATE_TOWER_H = 28;
 
-/** WLD-05: the goal line as a road-spanning castle gate — flanking stone towers with a torch-flame accent, a drawbridge-deck checkered threshold. */
+/** WLD-05: the goal line as a road-spanning castle gate — flanking stone towers with a torch-flame accent, a drawbridge-deck checkered threshold. Draws the `town.png` `castle-gate` region when loaded (RND-08/09); the drawbridge threshold line sits 32px below the region top, matching `y` below. */
 export function drawCastleGate(
   c: CanvasRenderingContext2D,
   view: View,
   remainingPx: number,
   playerYRatio: number,
   colors: RenderColors,
+  townSheet: HTMLImageElement | null,
 ): void {
   const y = view.h * playerYRatio - remainingPx;
   if (y < -CASTLE_GATE_TOWER_H - 16 || y > view.h + 16) {
+    return;
+  }
+  const gateRegion = TILE_SHEETS.town.regions["castle-gate"];
+  if (townSheet && gateRegion) {
+    c.drawImage(
+      townSheet,
+      gateRegion.x,
+      gateRegion.y,
+      gateRegion.w,
+      gateRegion.h,
+      0,
+      y - 32,
+      gateRegion.w,
+      gateRegion.h,
+    );
     return;
   }
   const towerW = Math.max(10, view.roadPad * 1.4);
@@ -619,7 +806,7 @@ function drawMarketBanner(
   }
 }
 
-/** Dispatches to the landmark's drawer if its scroll position is currently onscreen. */
+/** Dispatches to the landmark's drawer if its scroll position is currently onscreen; draws the matching `town.png` region (keyed identically to `kind`) when loaded (RND-08/09). */
 export function drawZoneLandmark(
   c: CanvasRenderingContext2D,
   view: View,
@@ -627,9 +814,25 @@ export function drawZoneLandmark(
   playerYRatio: number,
   kind: "town-gate-arch" | "market-banner",
   colors: RenderColors,
+  townSheet: HTMLImageElement | null,
 ): void {
   const y = view.h * playerYRatio - remainingPx;
   if (y < -LANDMARK_BAND_H - 4 || y > view.h + 4) {
+    return;
+  }
+  const region = TILE_SHEETS.town.regions[kind];
+  if (townSheet && region) {
+    c.drawImage(
+      townSheet,
+      region.x,
+      region.y,
+      region.w,
+      region.h,
+      0,
+      y,
+      region.w,
+      region.h,
+    );
     return;
   }
   if (kind === "town-gate-arch") {
@@ -1034,6 +1237,8 @@ export interface FrameConfig {
   bannerDuration: number;
   font: string;
   colors: RenderColors;
+  /** Drives the `town.png` road/curb crossfade (RND-09); mirrors the palette crossfade already captured in `colors`. */
+  zoneBlend: ZoneBlend;
 }
 
 export interface RenderFrameArgs {
@@ -1062,8 +1267,9 @@ export function renderFrame(
   }
   c.fillStyle = config.colors.duskPurple;
   c.fillRect(-4, -4, view.w + 8, view.h + 8);
-  drawRoad(c, view, sim.bgOffset, config.colors);
-  drawCurbs(c, view, sim.bgOffset, config.colors);
+  const townSheet = sheets.town ?? null;
+  drawRoad(c, view, sim.bgOffset, config.colors, townSheet, config.zoneBlend);
+  drawCurbs(c, view, sim.bgOffset, config.colors, townSheet, config.zoneBlend);
   drawLaneLines(c, view, config.laneCount, sim.bgOffset, config.colors);
   drawSpeedLines(c, sim.speedLines, config.colors);
   for (const landmark of ZONE_LANDMARKS) {
@@ -1076,9 +1282,17 @@ export function renderFrame(
       config.playerYRatio,
       landmark.kind,
       config.colors,
+      townSheet,
     );
   }
-  drawCastleGate(c, view, remainingGoalPx, config.playerYRatio, config.colors);
+  drawCastleGate(
+    c,
+    view,
+    remainingGoalPx,
+    config.playerYRatio,
+    config.colors,
+    townSheet,
+  );
   for (const obs of sim.obstacles) {
     drawEntity(c, obs, defs[obs.defId], config.colors, sheets, sim.animTime);
   }
