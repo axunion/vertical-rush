@@ -25,16 +25,6 @@ Status: implemented — see the marker on the invariant
   or animation is missing — verified by moving `public/assets/sheets/` away
   entirely)*
 
-## Current pipeline (for reference)
-
-Status: superseded by RND-01/RND-02 (P2) — kept for historical context only
-
-The pre-P2 pipeline: canvas backing store = CSS size × `devicePixelRatio`;
-all drawing used smooth vector primitives (gradients, `roundRect`,
-shadow-blur glow pre-rendered once per resize, additive particles). Entity
-geometry was computed from `view` (`roadPad`, `laneWidth`) at window size,
-recomputed on every resize. None of this describes the current code.
-
 ## RND-01 — Logical resolution: 180×320
 
 Status: implemented (src/entities.ts PLAYER_SIZE, src/App.tsx GAME_CONFIG.logical/view)
@@ -141,7 +131,7 @@ named contract:
   skill's color constant **in the same change** (`SPEC-ROADMAP › P2`).
 
 Theming addendum (binds every authored/replacement asset per `RND-08`;
-planned P7/P8):
+implemented P7/P8):
 
 - The key color stays **fixed across themes** — that is what keeps drop-in
   swap zero-config. Every frame of a replacement `poco.png`'s `idle`, `run`,
@@ -159,7 +149,7 @@ planned P7/P8):
   (fallback cat body, chicken beaks) already sits inside that tolerance box.
   Authored themes following the rule above are strictly cleaner than the
   procedural fallback; tightening the fallback palette is optional later
-  work, not a P7/P8 blocker.
+  work, tracked in `SPEC-ROADMAP › Backlog`.
 
 ## RND-06 — Draw dispatcher and background painters
 
@@ -170,9 +160,10 @@ Status: implemented (src/render.ts drawEntity, drawPlayer)
   since the fallback branch still needs the palette). If `def.sprite` is set
   and its sheet image loaded and the named animation exists → draw the
   current `frameAt` frame; else → the fallback drawer for `def.fallback`.
-  Today every `ENTITY_DEFS` row has `sprite: null`, so this path is exercised
-  by tests but not yet visible in play — it activates automatically once an
-  obstacle/item def gains a `sprite` reference.
+  Every `ENTITY_DEFS` row is bound to the `entities` sheet (P7,
+  `SPEC-ENTITIES › ENT-06`), so the sprite path is live whenever the sheet
+  is present; the fallback branch stays exercised whenever a sheet is
+  absent (`RND-INV-1`).
 - The player is not an entity (no `EntityDef`/category, per `src/entities.ts`)
   so it has its own dispatcher, `drawPlayer(ctx, box, colors, animState,
   animTime, animStateTime, sheet, facing)`: draws the `poco` sheet's current
@@ -210,7 +201,10 @@ shape is a code change and should stay rare. Mapping per entity:
 `cart` = wide 2-lane objects, `coin`/`gem` = round/faceted items, `cat` =
 stray-cat, `chicken` = chicken-flock birds, `barrel` = rolling-barrel). P4
 added `"coin"` when the `coin` item landed; P5 added `"gem"` and the three
-mover silhouettes, per `ENT-05`'s extension contract.
+mover silhouettes, per `ENT-05`'s extension contract. P10 and P11 may extend
+this union (guard/fountain/banner and the three effect items) or reuse
+existing shapes — decided in each phase; the union in code and this block
+change in the same commit.
 
 ## RND-08 — Fixed asset contract (drop-in theming)
 
@@ -276,9 +270,13 @@ transparent. **Source of truth** for the sheet layout:
   per-instance behavior state, and adding it is not justified.
 - `stray-cat` and `chicken-flock` are authored facing right; no mirroring is
   applied to entities.
-- Future entities (`town-guard` 16×24, `fountain` 40×40, …) append new bands
-  **below** y = 144 when their phase schedules them; existing band offsets
-  never move.
+- P10/P11 append new bands **below** y = 144 (`town-guard` 16×24, `fountain`
+  40×40, `banner-arch` 156×24 visual, `sweet-roll` 14×14, `hourglass` 12×16,
+  `magnet` 14×12); `banner-arch` requires widening the sheet beyond the
+  current 80 px — widening and appending are additive-safe because frames
+  are addressed by explicit rects, and existing band offsets never move.
+  Exact band y-offsets and frame counts are added to this table in the
+  scheduling phase.
 
 ### `town.png` — background tiles, gate, landmarks (implemented, P8)
 

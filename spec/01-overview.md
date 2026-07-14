@@ -1,7 +1,7 @@
 ---
 id: SPEC-OVERVIEW
 title: Game Overview & Global Invariants
-status: partial
+status: implemented
 code: [src/App.tsx, src/gameLogic.ts]
 ---
 
@@ -9,8 +9,8 @@ code: [src/App.tsx, src/gameLogic.ts]
 
 ## Pitch
 
-Status: partial — mechanics, pixel-art theme, and the P6 short-run retune
-implemented (P0–P6); P7/P8 drop-in image theming below are planned
+Status: implemented (P0–P8: mechanics, pixel-art theme, short-run retune,
+drop-in image theming)
 
 vertical-rush is a mobile-first, casual vertical lane runner: tap the left or
 right half of the screen to switch between 3 lanes, dodge obstacles scrolling
@@ -23,13 +23,13 @@ The build renders a pixel-art (dot-anime) fantasy town: the player sprints
 through the town of Karamell at golden hour, from the old town through the
 market street up to the castle gate. See `SPEC-WORLD` for the full concept.
 
-**Planned direction (P7–P8, `SPEC-ROADMAP`):** the whole look becomes
-swappable by replacing three fixed-name PNGs (`SPEC-RENDER › RND-08`), so new
-worlds are an art drop, not a code change.
+The whole look is swappable by replacing three fixed-name PNGs
+(`SPEC-RENDER › RND-08`, P7–P8) — new worlds are an art drop, not a code
+change.
 
 ## Glossary
 
-Status: implemented (terms in current code) / planned where marked
+Status: implemented (terms in current code)
 
 | Term | Meaning |
 |---|---|
@@ -44,11 +44,11 @@ Status: implemented (terms in current code) / planned where marked
 | zone | Named themed segment of the run (old-town / market-street / castle-road); 1:1 with today's levels — see `SPEC-CORE` |
 | entity | Any spawnable object (obstacle or item) defined by an `EntityDef` registry row |
 | logical pixel | Coordinate unit of the 180×320 offscreen canvas — see `SPEC-RENDER › RND-01` |
-| fallback drawing | Canvas-primitive rendering used when a sprite sheet PNG is absent (the only path today; sprite sheets arrive in P3) |
+| fallback drawing | Canvas-primitive rendering used when a sprite sheet PNG is absent (`SPEC-RENDER › RND-INV-1`) |
 
 ## Global invariants
 
-Status: implemented for INV rows marked so; planned rows bind future phases
+Status: implemented — all rows
 
 These rules hold in every phase and every commit. Each invariant is owned and
 detailed by the referenced spec.
@@ -56,11 +56,11 @@ detailed by the referenced spec.
 | ID | Invariant | Owner |
 |---|---|---|
 | `CORE-INV-1` | All collision decisions go through `checkCollision` in `src/gameLogic.ts`. Never reimplement hit detection elsewhere. *(implemented)* | `SPEC-CORE` |
-| `CORE-INV-2` | Pure modules (`src/gameLogic.ts`, `src/entities.ts`; later `src/sprites.ts`) never import UI dependencies (`window`, `document`, Canvas, SolidJS) and stay unit-testable in the node environment. *(implemented for gameLogic.ts and entities.ts)* | `SPEC-CORE` |
+| `CORE-INV-2` | Pure modules (`src/gameLogic.ts`, `src/entities.ts`, `src/sprites.ts`) never import UI dependencies (`window`, `document`, Canvas, SolidJS) and stay unit-testable in the node environment. *(implemented)* | `SPEC-CORE` |
 | `CORE-INV-3` | Distance is the sole clear condition. Items and score never gate progress. *(implemented — score is display-only)* | `SPEC-CORE` |
 | `ENT-INV-1` | Every spawned row leaves at least one passable lane. *(implemented via the safe-lane random walk)* | `SPEC-ENTITIES` |
 | `ENT-INV-2` | Moving obstacles never enter the current safe lane while within 1.5 player heights of the player row. *(implemented, P5: `src/entities.ts` `moverTargetLane` picks each mover's post-motion lane at spawn time to never be the row's safe lane)* | `SPEC-ENTITIES` |
-| `RND-INV-1` | The game is fully playable and visually coherent with zero PNG assets present; asset load failure is silent and per-sheet. *(implemented — primitives are currently the only path)* | `SPEC-RENDER` |
+| `RND-INV-1` | The game is fully playable and visually coherent with zero PNG assets present; asset load failure is silent and per-sheet. *(implemented — the per-sheet fallback path is exercised whenever a PNG is absent)* | `SPEC-RENDER` |
 | `OVR-INV-1` | No magic numbers at use sites: every tunable lives in a named config/table in the module that owns it (view/feel in `GAME_CONFIG`, entity data in `entities.ts`, difficulty in `gameLogic.ts`). *(implemented — tunables now split across `GAME_CONFIG` in `src/App.tsx`, `ENTITY_DEFS`/`SPAWN_TABLE` in `src/entities.ts`, and `SPAWN_GAP`/`ZONE_TABLE` in `src/gameLogic.ts`)* | this spec |
 
 ## Environment constraints
@@ -78,7 +78,7 @@ Restated here because they shape every canonical code block in these specs:
   deterministic scenarios and locates the player by **scanning canvas pixels
   for the player body color**. Randomness in spawn logic must stay routed
   through an injectable rng, and palette changes must update the verify skill
-  in the same phase (`SPEC-RENDER › RND-05`, `SPEC-ROADMAP` P2).
+  in the same phase (`SPEC-RENDER › RND-05`).
 - Missing `/assets/*.png` requests return 200 text/html (Vite SPA fallback),
   not 404 — asset loading must key off `Image` `onerror`/decode failure, never
   HTTP status (implemented in `src/render.ts` `loadImage`).

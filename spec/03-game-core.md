@@ -1,7 +1,7 @@
 ---
 id: SPEC-CORE
 title: Game Core (Simulation Contract)
-status: partial
+status: implemented
 code: [src/gameLogic.ts, src/App.tsx]
 ---
 
@@ -11,13 +11,13 @@ The simulation contract: what the run *is*, independent of how it is drawn.
 
 ## Invariants
 
-Status: partial — see the per-invariant markers
+Status: implemented — see the per-invariant markers
 
 - `CORE-INV-1` All collision decisions go through `checkCollision`
   (`src/gameLogic.ts`). Never reimplement hit detection. *(implemented)*
-- `CORE-INV-2` Pure modules (`src/gameLogic.ts`; later `src/entities.ts`,
+- `CORE-INV-2` Pure modules (`src/gameLogic.ts`, `src/entities.ts`,
   `src/sprites.ts`) have no UI dependencies and run under Vitest's node
-  environment. Logic changes are made test-first. *(implemented for gameLogic)*
+  environment. Logic changes are made test-first. *(implemented)*
 - `CORE-INV-3` Distance is the sole clear condition; items and score never
   gate progress. *(implemented — `isGameCleared` only ever checks distance;
   `calculateScore` is display-only and never consulted by the clear check)*

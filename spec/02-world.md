@@ -13,10 +13,9 @@ same entity ids.
 
 ## World concept: "Poco's Special Delivery"
 
-Status: partial — palette/theme implemented (P2); Poco's sprite sheet
-implemented (P3); the `coin` item landed in P4, `gem` and the three movers
-(`stray-cat`/`chicken-flock`/`rolling-barrel`) in P5; only the post-P5
-obstacle/item cast remains planned
+Status: partial — theme, Poco, and the P0–P8 cast implemented;
+`town-guard`/`fountain`/`banner-arch` planned (P10), the effect items
+planned (P11)
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
@@ -69,8 +68,8 @@ src/sprites.ts, src/render.ts drawPlayer)
 ## Obstacle cast
 
 Status: partial — `market-crate`/`hay-cart` implemented (P2); `stray-cat`/
-`chicken-flock`/`rolling-barrel` implemented (P5); the rest is planned per the
-phase column
+`chicken-flock`/`rolling-barrel` implemented (P5); `town-guard`/`fountain`/
+`banner-arch` planned (P10)
 
 Design-level roster. `WLD-01`: every obstacle row here has a matching registry
 row in `SPEC-ENTITIES › ENT-02` with the same id; neither table may gain an id
@@ -83,14 +82,14 @@ the other lacks (a `planned` stub row is enough).
 | `stray-cat` | napping orange cat | wakes with a 0.5 s crouch telegraph, then hops one lane sideways over 0.3 s toward a lane that isn't the row's safe lane (or stays put if none qualifies) | old-town, market-street | **P5** |
 | `chicken-flock` | 3 chickens, staggered vertically behind one another | each bird independently drifts at 90 px/s toward the same lane-adjacent, non-safe target lane — a diagonal crossing rather than a literal full-road sweep | old-town, market-street | **P5** |
 | `rolling-barrel` | runaway ale barrel | scrolls at 1.5× world speed down its lane (fast approach) | castle-road | **P5** |
-| `town-guard` | guard on patrol | scrolls at 0.6× world speed (player slowly catches up — teaches relative speed) | market-street, castle-road | post-P5 |
-| `fountain` | round stone fountain | static, center lane only, taller than one row (forces early commitment) | market-street | post-P5 |
-| `banner-arch` | low festival banner spanning the street | full-row visual with one open lane — a themed skin of the safe-lane row, not new logic | castle-road | post-P5 |
+| `town-guard` | guard on patrol | scrolls at 0.6× world speed (player slowly catches up — teaches relative speed) | market-street, castle-road | P10 |
+| `fountain` | round stone fountain | static, center lane only, taller than one row (forces early commitment) | market-street | P10 |
+| `banner-arch` | low festival banner spanning the street | full-row visual with one open lane — a themed skin of the safe-lane row, not new logic | castle-road | P10 |
 
 ## Item cast
 
-Status: partial — `coin` implemented (P4); `gem` implemented (P5); the rest
-is planned per the phase column
+Status: partial — `coin` implemented (P4); `gem` implemented (P5);
+`sweet-roll`/`hourglass`/`magnet` planned (P11)
 
 Same pairing rule as obstacles (`WLD-01`). Effects and spawn rules are
 normative in `SPEC-ENTITIES › ENT-03`.
@@ -99,9 +98,9 @@ normative in `SPEC-ENTITIES › ENT-03`.
 |---|---|---|---|
 | `coin` | copper coin, 4-frame spin | +10 score | **P4** |
 | `gem` | blue gem | +50 score, one guaranteed per zone (safe lane, `ENT-INV-3`) | **P5** |
-| `sweet-roll` | glowing pastry | shield: absorbs one hit | post-P5 |
-| `hourglass` | blue hourglass | slow-time: world speed ×0.6 for 3 s | post-P5 |
-| `magnet` | horseshoe magnet | nearby coins fly to Poco for 5 s | post-P5 |
+| `sweet-roll` | glowing pastry | shield: absorbs one hit | P11 |
+| `hourglass` | blue hourglass | slow-time: world speed ×0.6 for 3 s | P11 |
+| `magnet` | horseshoe magnet | nearby coins fly to Poco for 5 s | P11 |
 
 ## Base palette
 
@@ -147,7 +146,7 @@ drawCastleGate)
   drawbridge-deck threshold) drawn by `src/render.ts` `drawCastleGate`. Poco's
   `victory` animation plays in front of it on clear.
 - Typography: HUD/overlay text may keep the current sans-serif stack for now;
-  an embedded pixel font is an optional backlog refinement. UI display text
+  an embedded pixel font is scheduled (`SPEC-ROADMAP › P12`). UI display text
   remains Japanese; spec and code text are English.
 
 ## Theme swap

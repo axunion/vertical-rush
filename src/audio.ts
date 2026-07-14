@@ -1,5 +1,5 @@
 export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
-// Planned additive members (post-P5): "shieldGet" | "shieldBreak"
+// Planned additive members (P11): "shieldGet" | "shieldBreak"
 
 /** AUD-03: BGM tempo per zone id (ZONE_TABLE keys); key stays C major throughout. */
 const BGM_TEMPO: Record<string, number> = {

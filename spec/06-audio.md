@@ -10,8 +10,8 @@ code: [src/audio.ts, src/App.tsx]
 Direction: **100% procedural Web Audio** — zero asset bytes, no decode
 latency, no file-format quirks. The existing synth voices are restructured
 into a chiptune flavor that fits the fantasy-town world. Authored audio files
-(≤150 KB total, OGG+M4A) are a post-P5 escape hatch only if the procedural
-BGM proves flat.
+(≤150 KB total, OGG+M4A) are a P12 escape hatch, evaluated after `AUD-04`
+lands (`SPEC-ROADMAP › P12`), only if the procedural BGM proves flat.
 
 ## AUD-01 — Unlock rule
 
@@ -31,7 +31,7 @@ The catalog is keyed by `SfxId`. Canonical (src/audio.ts):
 
 ```ts
 export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
-// Planned additive members (post-P5): "shieldGet" | "shieldBreak"
+// Planned additive members (P11): "shieldGet" | "shieldBreak"
 ```
 
 | SfxId | game event | recipe | status |
@@ -41,7 +41,7 @@ export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
 | `clear` | reaching the castle gate | current arpeggio + a low bell (sine 523 Hz, ~1.2 s decay) | implemented (P5) |
 | `gameOver` | crash | current sawtooth down-sweep + a white-noise burst (~0.2 s buffer noise, exponential decay) for the pratfall | implemented (P5) |
 | `coin` | item collect | two-note ping E6→B6, square wave, ~0.09 s | implemented (P4) |
-| `shieldGet` / `shieldBreak` | effect items | warm major chord / glass pop | planned (post-P5) |
+| `shieldGet` / `shieldBreak` | effect items | warm major chord / glass pop | planned (P11) |
 
 `SPEC-ENTITIES` `CollisionEffect.collect.sfx` references these ids — adding an
 item with a new sound means adding a voice here first.
@@ -77,7 +77,8 @@ comes from tempo, key stays fixed:
 
 ## AUD-04 — Ambient flavor
 
-Status: planned (post-P5, optional)
+Status: planned (P12, optional — may be closed as skipped per the escape
+clause below)
 
 Clearly optional polish, all procedural: sparse two-note sine bird blips every
 4–9 s in `old-town`; low band-passed noise "crowd murmur" in `market-street`;

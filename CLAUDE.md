@@ -82,19 +82,25 @@ staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
   logic test-first.
 - `src/entities.ts` — canonical entity types (`EntityDef`, `EntityInstance`,
   `FallbackShape`), the entity registry (`ENTITY_DEFS`), the fixed
-  `PLAYER_SIZE`, pure spawn-row generation with an injected `rng`, and
-  obstacle-array helpers (`advanceObstacles`, `positionObstacleRow`). No UI
-  dependencies; covered by `src/entities.test.ts`; change logic test-first.
-- `src/sprites.ts` — the sprite-sheet manifest (`SPRITE_SHEETS`) and the pure
-  frame picker `frameAt`. No UI dependencies; covered by
-  `src/sprites.test.ts`; change logic test-first.
+  `PLAYER_SIZE`, pure spawn-row generation with an injected `rng`, the
+  zone-keyed `SPAWN_TABLE`, obstacle-array helpers (`advanceObstacles`,
+  `positionObstacleRow`, mover stepping), and item helpers (`advanceItems`,
+  `positionCoinTrail`, `positionGem`). No UI dependencies; covered by
+  `src/entities.test.ts`; change logic test-first.
+- `src/sprites.ts` — the sprite-sheet manifest (`SPRITE_SHEETS`), the
+  tile-region manifest (`TILE_SHEETS`), and the pure frame picker `frameAt`.
+  No UI dependencies; covered by `src/sprites.test.ts`; change logic
+  test-first.
 - `src/render.ts` — the fixed 180×320 offscreen/display canvas pipeline
   (`computeDisplayFit`, `sizeDisplayCanvas`, `createOffscreenCanvas`,
   `blitFrame`), the draw dispatcher (`drawEntity`/`drawPlayer`/`drawFallback`),
-  the per-sheet sprite loader (`loadSpriteSheets`), and the particle/speed-line
-  system. Canvas/DOM allowed, no SolidJS.
-- `src/audio.ts` — `createSfx` (Web Audio synth voices) and the `SfxId`
-  catalog.
+  the background painters (`drawRoad`/`drawCurbs`/`drawCastleGate`/
+  `drawZoneLandmark`) with their cached tile patterns, the per-sheet sprite
+  loader (`loadSpriteSheets`), and the particle/speed-line system. Canvas/DOM
+  allowed, no SolidJS.
+- `src/audio.ts` — `createSfx` (Web Audio synth voices), the `SfxId`
+  catalog, and the procedural BGM system (`startBgm`/`setBgmZone`/
+  `setBgmDucked`/`stopBgm`).
 - `src/App.tsx` — orchestration only: game loop, input, phase signals,
   `GAME_CONFIG` (view/feel/particle tunables), and HUD/overlay JSX. Collision
   checks must go through `checkCollision` (via `entities.ts`

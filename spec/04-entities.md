@@ -13,7 +13,7 @@ descriptions (motif, fiction) for the same ids live in `SPEC-WORLD`.
 
 ## Invariants
 
-Status: partial — see the per-invariant markers
+Status: implemented — see the per-invariant markers
 
 - `ENT-INV-1` Every spawned row leaves at least one passable lane.
   *(implemented via the safe-lane random walk in `src/entities.ts` `spawnRow`;
@@ -68,8 +68,10 @@ export type EntityCategory = "obstacle" | "item";
 export type CollisionEffect =
   | { kind: "crash" } // ends the run: gameover phase, crash sfx, shake, sparks
   | { kind: "collect"; score: number; sfx: SfxId }; // removes the instance, adds score
-// Planned additive members (do NOT implement before their roadmap phase):
-//   | { kind: "shield" }   | { kind: "slow"; factor: number; durationSec: number }
+// Planned additive members (P11 — do NOT implement before that phase):
+//   | { kind: "shield" }
+//   | { kind: "slow"; factor: number; durationSec: number }
+//   | { kind: "magnet"; durationSec: number } // pull radius tuned during P11
 
 export type BehaviorDef =
   | { kind: "static" }
@@ -112,9 +114,8 @@ Status: partial — `market-crate`/`hay-cart` implemented (P2); `coin`
 implemented (P4); `gem` implemented (P5); movers (`stray-cat`/
 `chicken-flock`/`rolling-barrel`) implemented (P5, `src/entities.ts`
 `ENTITY_DEFS`, `moverTargetLane`, `attachDartMotion`, `positionChickenFlock`,
-`stepMover`) — the rest of the registry (post-P5 cast: `town-guard`,
-`fountain`, `banner-arch`, `sweet-roll`, `hourglass`, `magnet`) remains
-planned per `SPEC-ROADMAP`
+`stepMover`); `town-guard`/`fountain`/`banner-arch` planned (P10);
+`sweet-roll`/`hourglass`/`magnet` planned (P11)
 
 `ENT-02` — **source of truth** for mechanical values. Ids pair 1:1 with
 `SPEC-WORLD` (`WLD-01`). Sizes are logical px on the 180×320 grid
@@ -127,14 +128,14 @@ planned per `SPEC-ROADMAP`
 | `stray-cat` | obstacle | 16×12 | 1 | dart (telegraph 0.5 s, hop 0.3 s) | crash | 15 | old-town, market-street | **P5** |
 | `chicken-flock` | obstacle | 3 birds, 12×12 each, staggered `CHICKEN_FLOCK.spacingM` (0.6 m) apart | 1 (each bird) | walker (crossSpeed 90 px/s) | crash | 12 | old-town, market-street | **P5** |
 | `rolling-barrel` | obstacle | 20×20 | 1 | roller (speedFactor 1.5×) | crash | 10 | castle-road | **P5** |
-| `town-guard` | obstacle | 16×24 | 1 | roller (0.6× world speed) | crash | 8 | market-street, castle-road | post-P5 |
-| `fountain` | obstacle | 40×40 | 1 (center only) | static | crash | 5 | market-street | post-P5 |
-| `banner-arch` | obstacle | visual 156×24; hitbox 38×24 per blocked lane | full row | static | crash | scripted | castle-road | post-P5 |
+| `town-guard` | obstacle | 16×24 | 1 | roller (0.6× world speed) | crash | 8 | market-street, castle-road | P10 |
+| `fountain` | obstacle | 40×40 | 1 (center only) | static | crash | 5 | market-street | P10 |
+| `banner-arch` | obstacle | visual 156×24; hitbox 38×24 per blocked lane | full row | static | crash | scripted | castle-road | P10 |
 | `coin` | item | 12×12 | 1 | static | collect +10, sfx `coin` | trail rule below | all | **P4** |
 | `gem` | item | 12×12 | 1 | static | collect +50, sfx `coin` | 1 per zone | all | **P5** |
-| `sweet-roll` | item | 14×14 | 1 | static | shield *(planned effect)* | rare | all | post-P5 |
-| `hourglass` | item | 12×16 | 1 | static | slow *(planned effect)* | rare | all | post-P5 |
-| `magnet` | item | 14×12 | 1 | static | magnet *(planned effect)* | rare | all | post-P5 |
+| `sweet-roll` | item | 14×14 | 1 | static | shield *(planned effect)* | rare | all | P11 |
+| `hourglass` | item | 12×16 | 1 | static | slow *(planned effect)* | rare | all | P11 |
+| `magnet` | item | 14×12 | 1 | static | magnet *(planned effect)* | rare | all | P11 |
 
 `market-crate` at 38×24 intentionally matches the current obstacle's footprint
 (`laneWidth × 0.74`, aspect 0.62) so P2 changes look, not difficulty. The
@@ -154,6 +155,16 @@ instance, and a `chicken-flock` pick calls `positionChickenFlock` to return
 `CHICKEN_FLOCK.count` staggered instances instead of one. The function's
 signature grew `safeLane`/`laneCount`/`pxPerMeter` params to support this —
 existing static-only obstacles ignore them.
+
+Planned placement rules for the P10 rows:
+
+- *`fountain` (planned, P10)*: eligible in the weighted pick only when the
+  blocked lane being filled is the center lane; the implementation shape is
+  decided during P10.
+- *`banner-arch` (planned, P10)*: not a weighted pick — a scripted
+  castle-road row variant: each non-safe lane gets a 38×24 hitbox under one
+  156-wide visual, so `ENT-INV-1` holds by construction. Trigger frequency
+  is tuned during P10.
 
 ## Spawning
 
@@ -250,14 +261,17 @@ gem support via CollectedItem.defId)
   (`GAME_CONFIG.particles.itemBurst`, gold for `coin` / dusk-teal for `gem`).
   The HUD's 🪙 counter only counts `defId === "coin"` pickups — `gem` adds to
   the score total without incrementing it. The run never stops for an item.
-- Effect items (`shield`, `slow`, `magnet`) are post-P5. Reserved design: a
-  single `activeEffects` structure on the sim, effects never stack, re-collect
-  refreshes duration. Do not build any of this before its phase.
+- Effect items (`shield`, `slow`, `magnet`) are planned (P11). Contract: a
+  single `activeEffects` structure on the sim; effects never stack;
+  re-collect refreshes duration; values per `SPEC-WORLD › Item cast` (shield
+  absorbs exactly one hit — `shieldBreak` sfx instead of gameover; slow
+  ×0.6 for 3 s; magnet 5 s). The magnet pull radius and the HUD effect
+  indicator are tuned/designed during P11. Do not build any of this
+  before P11.
 
 ## Extensibility contract
 
-Status: planned (unscheduled — P5 shipped `gem` and movers without proving
-this; see the P5 note in `SPEC-ROADMAP › Completed phases (P0–P5)`)
+Status: planned (P10 — proven when `town-guard` lands via steps 1–3 alone)
 
 `ENT-05` — Adding a new **static obstacle or score item** touches only data:
 
@@ -271,8 +285,11 @@ No edits to `App.tsx`, `render.ts` dispatch, or `gameLogic.ts`. A new
 *behavior kind* or *effect kind* is the one case that legitimately extends the
 unions and the shell's dispatch — that is a design change, not content.
 P5 shipped its new entities via that carve-out (see the P5 note in
-`SPEC-ROADMAP › Completed phases (P0–P5)`), so the data-only path is proven
-by the first future entity that lands via steps 1–3 alone.
+`SPEC-ROADMAP › Completed phases (P0–P8)`), so the data-only path is proven
+by the first future entity that lands via steps 1–3 alone — scheduled as
+`town-guard` in P10. A new `FallbackShape` drawer is the `RND-07`-sanctioned
+rare addition and does not void the claim: the contract governs the loop,
+collision, and dispatch code, not fallback art.
 
 ## Sprite binding
 
