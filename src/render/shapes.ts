@@ -26,6 +26,12 @@ export function drawFallback(
     drawChickenShape(c, x, y, w, h, colors);
   } else if (shape === "barrel") {
     drawBarrelShape(c, x, y, w, h, colors);
+  } else if (shape === "guard") {
+    drawGuardShape(c, x, y, w, h, colors);
+  } else if (shape === "fountain") {
+    drawFountainShape(c, x, y, w, h, colors);
+  } else if (shape === "banner") {
+    drawBannerShape(c, x, y, w, h, colors);
   } else {
     drawRunnerShape(c, x, y, w, h, colors, animTime);
   }
@@ -159,6 +165,66 @@ function drawBarrelShape(
   c.fillStyle = colors.gold;
   c.fillRect(x + w * 0.1, y + h * 0.25, w * 0.8, h * 0.08);
   c.fillRect(x + w * 0.1, y + h * 0.67, w * 0.8, h * 0.08);
+}
+
+/** Patrolling town-guard: chibi humanoid silhouette, distinct from Poco's runner shape (no rust-red). */
+function drawGuardShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(x + w * 0.2, y + h * 0.4, w * 0.6, h * 0.5);
+  strokeInset(c, x + w * 0.2, y + h * 0.4, w * 0.6, h * 0.5, colors.ink);
+  c.fillStyle = colors.parchment;
+  c.fillRect(x + w * 0.28, y + h * 0.14, w * 0.44, h * 0.28);
+  c.fillStyle = colors.duskPurple;
+  c.fillRect(x + w * 0.22, y, w * 0.56, h * 0.16);
+  c.fillStyle = colors.cobbleLight;
+  c.fillRect(x + w * 0.85, y, w * 0.08, h * 0.9);
+}
+
+/** Round stone fountain: wide stone base with a raised water basin, tall enough to force early commitment. */
+function drawFountainShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.cobbleLight;
+  c.fillRect(x, y + h * 0.7, w, h * 0.3);
+  strokeInset(c, x, y + h * 0.7, w, h * 0.3, colors.ink);
+  c.fillStyle = colors.duskTeal;
+  c.fillRect(x + w * 0.15, y + h * 0.35, w * 0.7, h * 0.4);
+  strokeInset(c, x + w * 0.15, y + h * 0.35, w * 0.7, h * 0.4, colors.ink);
+  c.fillStyle = colors.warmWhite;
+  c.fillRect(x + w * 0.44, y, w * 0.12, h * 0.4);
+  c.fillStyle = colors.gold;
+  c.fillRect(x + w * 0.38, y + h * 0.08, w * 0.24, w * 0.06);
+}
+
+/** Festival banner segment: a wood-brown crossbar with hanging cloth, reskinning a blocked lane of the safe-lane row. */
+function drawBannerShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.woodBrown;
+  c.fillRect(x, y, w, h * 0.2);
+  strokeInset(c, x, y, w, h * 0.2, colors.ink);
+  c.fillStyle = colors.leafGreen;
+  c.fillRect(x + w * 0.08, y + h * 0.2, w * 0.84, h * 0.6);
+  strokeInset(c, x + w * 0.08, y + h * 0.2, w * 0.84, h * 0.6, colors.ink);
+  c.fillStyle = colors.gold;
+  c.fillRect(x + w * 0.4, y + h * 0.32, w * 0.2, h * 0.2);
 }
 
 function drawRunnerShape(

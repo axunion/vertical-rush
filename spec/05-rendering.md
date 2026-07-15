@@ -178,7 +178,7 @@ Status: implemented (src/render/entities-draw.ts drawEntity, drawPlayer)
 
 ## RND-07 — Fallback shapes
 
-Status: implemented (src/entities.ts FallbackShape, src/render/shapes.ts drawFallback) — the `FallbackShape` union has 8 members (`runner`/`crate`/`cart`/`coin`/`gem`/`cat`/`chicken`/`barrel`); `coin` landed in P4 (src/render/shapes.ts drawCoinShape), `gem`/`cat`/`chicken`/`barrel` landed in P5 (src/render/shapes.ts drawGemShape/drawCatShape/drawChickenShape/drawBarrelShape)
+Status: implemented (src/entities.ts FallbackShape, src/render/shapes.ts drawFallback) — the `FallbackShape` union has 11 members (`runner`/`crate`/`cart`/`coin`/`gem`/`cat`/`chicken`/`barrel`/`guard`/`fountain`/`banner`); `coin` landed in P4 (src/render/shapes.ts drawCoinShape), `gem`/`cat`/`chicken`/`barrel` landed in P5 (src/render/shapes.ts drawGemShape/drawCatShape/drawChickenShape/drawBarrelShape), `guard`/`fountain`/`banner` landed in P10 (src/render/shapes.ts drawGuardShape/drawFountainShape/drawBannerShape)
 
 Canonical (target: `src/entities.ts`):
 
@@ -191,7 +191,10 @@ export type FallbackShape =
   | "gem"
   | "cat"
   | "chicken"
-  | "barrel";
+  | "barrel"
+  | "guard"
+  | "fountain"
+  | "banner";
 ```
 
 A small closed set of parameterized pixel-style primitive drawers (chunky
@@ -201,19 +204,24 @@ reuse an existing shape unless they genuinely need a new silhouette; adding a
 shape is a code change and should stay rare. Mapping per entity:
 `SPEC-ENTITIES › ENT-02` (`runner` = poco, `crate` = crates/static props,
 `cart` = wide 2-lane objects, `coin`/`gem` = round/faceted items, `cat` =
-stray-cat, `chicken` = chicken-flock birds, `barrel` = rolling-barrel). P4
-added `"coin"` when the `coin` item landed; P5 added `"gem"` and the three
-mover silhouettes, per `ENT-05`'s extension contract. P10 and P11 may extend
-this union (guard/fountain/banner and the three effect items) or reuse
-existing shapes — decided in each phase; the union in code and this block
-change in the same commit.
+stray-cat, `chicken` = chicken-flock birds, `barrel` = rolling-barrel, `guard`
+= town-guard, `fountain` = fountain, `banner` = banner-arch). P4 added
+`"coin"` when the `coin` item landed; P5 added `"gem"` and the three mover
+silhouettes, per `ENT-05`'s extension contract. P10 added `"guard"`/
+`"fountain"`/`"banner"` for the same reason — each obstacle's silhouette
+(a patrolling guard, a round fountain, a hanging banner) has no honest reuse
+among the existing eight. P11 may extend this union further (the three
+effect items) or reuse existing shapes — decided in that phase; the union in
+code and this block change in the same commit.
 
 ## RND-08 — Fixed asset contract (drop-in theming)
 
 Status: implemented — `poco.png` (P3), `entities.png` (P7, src/sprites.ts
-SPRITE_SHEETS.entities, src/entities.ts ENTITY_DEFS), and `town.png` (P8,
-src/sprites.ts TILE_SHEETS.town, src/render/road.ts drawRoad/drawCurbs,
-src/render/landmarks.ts drawCastleGate/drawZoneLandmark) are all authored under
+SPRITE_SHEETS.entities, src/entities.ts ENTITY_DEFS; grew from 80×144 to
+80×232 in P10 to append the `town-guard`/`fountain`/`banner-arch` bands), and
+`town.png` (P8, src/sprites.ts TILE_SHEETS.town, src/render/road.ts
+drawRoad/drawCurbs, src/render/landmarks.ts
+drawCastleGate/drawZoneLandmark) are all authored under
 `public/assets/sheets/` and loaded; `RND-INV-1`'s fallback path is exercised
 identically whenever any one of the three is absent
 
@@ -247,9 +255,11 @@ Protagonist`):
 | 3 | 96 | `crash` | 3 |
 | 4 | 128 | `victory` | 2 |
 
-### `entities.png` — obstacles + items (implemented, P7)
+### `entities.png` — obstacles + items (implemented, P7; extended P10)
 
-**80 × 144.** One entity per horizontal band; frames at the entity's native
+**80 × 232** (P10 grew the sheet's height from 144 to 232 to append three
+bands; its width, 80, was already wide enough for every new band). One
+entity per horizontal band; frames at the entity's native
 logical size (frame w×h **equals** `EntityDef.size` — `SPEC-ENTITIES ›
 ENT-06` — so `drawImage` never scales), laid out left-to-right from x = 0;
 band y-offsets are multiples of 8; unused band remainder is fully
@@ -264,6 +274,9 @@ transparent. **Source of truth** for the sheet layout:
 | `chicken-flock` | 96 | 12×12 | 2 | 0, 12 | 8 | yes | walk waddle — one bird; the game draws 3 staggered |
 | `coin` | 112 | 12×12 | 4 | 0, 12, 24, 36 | 8 | yes | spin |
 | `gem` | 128 | 12×12 | 2 | 0, 12 | 4 | yes | sparkle blink |
+| `town-guard` | 144 | 16×24 | 1 | 0 | — | yes | patrolling guard (the `roller` behavior scrolls it independently; no lateral motion) |
+| `fountain` | 168 | 40×40 | 2 | 0, 40 | 4 | yes | water shimmer blink |
+| `banner-arch` | 208 | 38×24 | 1 | 0 | — | yes | festival banner segment (one per blocked lane; adjacent segments read as one arch) |
 
 - One looping animation per entity, **named by its entity id**, driven by the
   global animation clock `drawEntity` already receives — all instances of an
@@ -272,13 +285,18 @@ transparent. **Source of truth** for the sheet layout:
   per-instance behavior state, and adding it is not justified.
 - `stray-cat` and `chicken-flock` are authored facing right; no mirroring is
   applied to entities.
-- P10/P11 append new bands **below** y = 144 (`town-guard` 16×24, `fountain`
-  40×40, `banner-arch` 156×24 visual, `sweet-roll` 14×14, `hourglass` 12×16,
-  `magnet` 14×12); `banner-arch` requires widening the sheet beyond the
-  current 80 px — widening and appending are additive-safe because frames
-  are addressed by explicit rects, and existing band offsets never move.
-  Exact band y-offsets and frame counts are added to this table in the
-  scheduling phase.
+- P10 appended `town-guard`/`fountain`/`banner-arch` below y = 144 (table
+  above). `banner-arch` is authored as its 38×24 hitbox size rather than one
+  continuous 156-wide visual: reusing the generic per-instance sprite
+  dispatch (`RND-06`) needs no new rendering machinery, and two adjacent
+  38×24 segments still read as one banner when a row blocks two lanes. The
+  sheet grew in height only (144 → 232); its width (80) already fit every
+  new band.
+- P11 will append `sweet-roll` 14×14, `hourglass` 12×16, `magnet` 14×12
+  below y = 232; widening and appending stay additive-safe because frames
+  are addressed by explicit rects and existing band offsets never move.
+  Exact band y-offsets and frame counts are added to this table in that
+  phase.
 
 ### `town.png` — background tiles, gate, landmarks (implemented, P8)
 

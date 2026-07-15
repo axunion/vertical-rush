@@ -7,9 +7,9 @@ code: []
 
 # Implementation Roadmap
 
-Ordered phases. **P0–P9 are complete** — one-line summaries below; their full
+Ordered phases. **P0–P10 are complete** — one-line summaries below; their full
 scope, completion criteria, and verification text lives in git history.
-Scheduled work is **P10–P12**; remaining ideas live in the unscheduled backlog
+Scheduled work is **P11–P12**; remaining ideas live in the unscheduled backlog
 at the bottom. Each phase is **independently shippable**: the game is
 complete-feeling at every phase boundary. Do not start backlog scope without
 first scheduling it into a phase.
@@ -26,7 +26,7 @@ Completion additionally requires flipping the relevant `Status:` lines in
 these specs from `planned (Pn)` to `implemented (module symbol)` in the same
 commit — that is what keeps spec/code drift structurally bounded.
 
-## Completed phases (P0–P9)
+## Completed phases (P0–P10)
 
 Status: implemented
 
@@ -47,8 +47,7 @@ One line per phase; details are in git history.
 - **P5 — Content & difficulty pass.** `ZONE_TABLE` (`CORE-03`), zone-keyed
   `SPAWN_TABLE`, `gem`, three movers (`ENT-INV-2`), zone-transition
   presentation, BGM + clear/crash SFX. Landed via `ENT-05`'s behavior-kind
-  carve-out; the data-only extensibility claim is scheduled to be proven
-  in P10.
+  carve-out; the data-only extensibility claim was proven in P10.
 - **P6 — Short-run retune (instant loop).** 240 m / ~24 s runs (`CORE-03`
   retable), instant tap-to-retry (`CORE-05`), persisted best score
   (`CORE-06`).
@@ -69,50 +68,22 @@ One line per phase; details are in git history.
   tests cover the newly node-importable pure functions
   (`src/render/helpers.test.ts`, `display.test.ts`, `particles.test.ts`,
   `src/zoneVisuals.test.ts`); the verify skill passed unedited.
-
-## P10 — Remaining obstacle cast (proves ENT-05)
-
-Status: planned (P10)
-
-The three obstacles designed in `SPEC-WORLD › Obstacle cast` land, and
-`town-guard` is the long-deferred proof of the `ENT-05` data-only
-extensibility claim.
-
-**Scope:**
-
-- `town-guard` (16×24): reuses the existing `roller` behavior at 0.6× world
-  speed, so it must land via `ENT-05` steps 1–3 alone — no edits to
-  `src/gameController.ts`, `src/render/entities-draw.ts` (the render
-  dispatch), or `src/gameLogic.ts`.
-- `fountain` (40×40, static): eligible in the weighted pick only when the
-  row's blocked lane is the center lane (`ENT-02`).
-- `banner-arch` (visual 156×24, hitbox 38×24 per blocked lane): a scripted
-  castle-road full-row variant skinning the safe-lane row — not a weighted
-  pick; trigger frequency tuned during the phase.
-- `SPAWN_TABLE` refs per the `ENT-02` weights (`town-guard` 8, `fountain` 5,
-  `banner-arch` scripted).
-- Widen `entities.png` beyond 80 px and append three bands below `y = 144`
-  (`RND-08`); fallback shapes per `RND-07` (new members or reuse, decided
-  in-phase).
-
-**Completion criteria:**
-
-- `WLD-01` pairing intact; `ENT-06` binding tests cover the new bands.
-- `town-guard` lands data-only (a new fallback drawer is the
-  `RND-07`-sanctioned rare exception and does not void the claim), flipping
-  `ENT-05` to implemented.
-- `fountain` never blocks a non-center lane; `banner-arch` rows keep
-  `ENT-INV-1` by construction.
-- All values tuned during the phase are written back into `ENT-02`.
-
-**Verification:** the triplet, run twice — with sheets present and with
-`public/assets/` temporarily renamed away (both render paths for the new
-entities).
-
-**Status flips:** `SPEC-WORLD › Obstacle cast`; the `ENT-02` registry Status
-line and its three obstacle rows; `SPEC-ENTITIES › Extensibility contract`
-(`ENT-05`) → implemented; the `RND-07` member list and the `RND-08`
-`entities.png` band table gain their rows in the same commit.
+- **P10 — Remaining obstacle cast (proves ENT-05).** `town-guard`
+  (`src/entities.ts` `ENTITY_DEFS`, a `roller` `speedFactor: 0.6`
+  `WeightedRef` added to `market-street`/`castle-road`'s obstacle pools —
+  the `ENT-05` data-only proof, zero edits to `gameController.ts`/
+  `entities-draw.ts`/`gameLogic.ts`); `fountain` (`market-street`,
+  center-lane-only via the new `EntityDef.laneRestriction` field feeding a
+  per-lane filter in `positionObstacleRow`); `banner-arch` (`castle-road`,
+  scripted via `shouldSpawnBannerArch`/`positionBannerArchRow` in
+  `src/gameController.ts` `spawnObstacleRow` — always blocks every non-safe
+  lane, bypassing the weighted pick entirely, so `ENT-INV-1` holds by
+  construction). Three new `FallbackShape` members (`guard`/`fountain`/
+  `banner`, `src/render/shapes.ts`); `entities.png` grew 80×144 → 80×232 to
+  append the three bands (`banner-arch` authored per-lane at 38×24 rather
+  than one continuous 156-wide visual — reuses the existing per-instance
+  sprite dispatch with no new rendering machinery). Verified with sheets
+  present and with `public/assets/` renamed away.
 
 ## P11 — Effect items
 
@@ -188,5 +159,5 @@ Status: planned (unscheduled)
 
 Endless mode after clear, and tightening the fallback palette's `terracotta`
 out of the `RND-05` tolerance box (the known-ambiguity note there).
-Everything else previously listed here is scheduled into P10–P12. None of
+Everything else previously listed here is scheduled into P11–P12. None of
 these may be implemented ahead of being scheduled into a phase.

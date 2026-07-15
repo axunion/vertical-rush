@@ -24,7 +24,10 @@ export type FallbackShape =
   | "gem"
   | "cat"
   | "chicken"
-  | "barrel";
+  | "barrel"
+  | "guard"
+  | "fountain"
+  | "banner";
 
 export interface EntityDef {
   id: string;
@@ -35,6 +38,8 @@ export interface EntityDef {
   sprite: { sheet: string; animation: string } | null;
   fallback: FallbackShape;
   onCollision: CollisionEffect;
+  /** ENT-02 (P10): when set, this static obstacle is only eligible for the weighted pick filling that lane (fountain: center only). */
+  laneRestriction?: "center";
 }
 
 export interface EntityInstance extends Box {
@@ -130,6 +135,37 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     fallback: "barrel",
     onCollision: { kind: "crash" },
   },
+  "town-guard": {
+    id: "town-guard",
+    category: "obstacle",
+    size: { w: 16, h: 24 },
+    lanes: 1,
+    behavior: { kind: "roller", speedFactor: 0.6 },
+    sprite: entitySprite("town-guard"),
+    fallback: "guard",
+    onCollision: { kind: "crash" },
+  },
+  fountain: {
+    id: "fountain",
+    category: "obstacle",
+    size: { w: 40, h: 40 },
+    lanes: 1,
+    behavior: { kind: "static" },
+    sprite: entitySprite("fountain"),
+    fallback: "fountain",
+    onCollision: { kind: "crash" },
+    laneRestriction: "center",
+  },
+  "banner-arch": {
+    id: "banner-arch",
+    category: "obstacle",
+    size: { w: 38, h: 24 },
+    lanes: 1,
+    behavior: { kind: "static" },
+    sprite: entitySprite("banner-arch"),
+    fallback: "banner",
+    onCollision: { kind: "crash" },
+  },
 };
 
 /** ENT-03: coin trail geometry, in meters measured behind the row's leading edge. Flat across zones. */
@@ -179,10 +215,18 @@ const STREET_OBSTACLES: WeightedRef[] = [
   { defId: "hay-cart", weight: 20 },
 ];
 
-/** castle-road swaps street movers for the faster rolling-barrel (ENT-02). */
+/** market-street adds town-guard (relative-speed teaching moment) and the center-lane-only fountain (ENT-02, P10). */
+const MARKET_STREET_OBSTACLES: WeightedRef[] = [
+  ...STREET_OBSTACLES,
+  { defId: "town-guard", weight: 8 },
+  { defId: "fountain", weight: 5 },
+];
+
+/** castle-road swaps street movers for rolling-barrel and adds town-guard (ENT-02, P10). */
 const CASTLE_ROAD_OBSTACLES: WeightedRef[] = [
   ...BASE_OBSTACLES,
   { defId: "rolling-barrel", weight: 10 },
+  { defId: "town-guard", weight: 8 },
 ];
 
 const DEFAULT_ITEMS: WeightedRef[] = [{ defId: "coin", weight: 1 }];
@@ -195,7 +239,7 @@ export const SPAWN_TABLE: Record<string, ZoneSpawn> = {
     items: DEFAULT_ITEMS,
   },
   "market-street": {
-    obstacles: STREET_OBSTACLES,
+    obstacles: MARKET_STREET_OBSTACLES,
     itemChance: 0.6,
     items: DEFAULT_ITEMS,
   },
@@ -205,6 +249,9 @@ export const SPAWN_TABLE: Record<string, ZoneSpawn> = {
     items: DEFAULT_ITEMS,
   },
 };
+
+/** ENT-02 (P10): how often a castle-road row is scripted as a banner-arch instead of a normal weighted pick. */
+const BANNER_ARCH_CHANCE = 0.12;
 
 /** Weighted random pick among `refs`, using the injected rng (deterministic under Math.random stubbing). */
 export function pickWeighted(
@@ -227,6 +274,17 @@ export interface SpawnResult {
   blockedLanes: number[];
 }
 
+/** Every lane in `[0, laneCount)` except `excludeLane`, in ascending order. */
+function otherLanes(laneCount: number, excludeLane: number): number[] {
+  const lanes: number[] = [];
+  for (let lane = 0; lane < laneCount; lane++) {
+    if (lane !== excludeLane) {
+      lanes.push(lane);
+    }
+  }
+  return lanes;
+}
+
 /**
  * Pure spawn-row algorithm: advances the safe lane by a clamped random walk,
  * then blocks either one or all non-safe lanes. Takes an injected rng so the
@@ -240,12 +298,7 @@ export function spawnRow(
 ): SpawnResult {
   const step = Math.floor(rng() * 3) - 1;
   const nextSafeLane = Math.min(laneCount - 1, Math.max(0, safeLane + step));
-  const openLanes: number[] = [];
-  for (let lane = 0; lane < laneCount; lane++) {
-    if (lane !== nextSafeLane) {
-      openLanes.push(lane);
-    }
-  }
+  const openLanes = otherLanes(laneCount, nextSafeLane);
   const blockAll = openLanes.length > 1 && rng() < doubleChance;
   const blockedLanes = blockAll
     ? openLanes
@@ -381,8 +434,18 @@ export function positionObstacleRow(
       ),
     ];
   }
+  const centerLane = Math.floor(laneCount / 2);
   return blockedLanes.flatMap((lane) => {
-    const defId = pickWeighted(oneLaneRefs, rng);
+    // ENT-02 (P10): fountain's laneRestriction keeps it out of the pool
+    // unless this is the center lane's pick.
+    const eligibleRefs = oneLaneRefs.filter((r) => {
+      const restriction = ENTITY_DEFS[r.defId].laneRestriction;
+      return (
+        restriction === undefined ||
+        (restriction === "center" && lane === centerLane)
+      );
+    });
+    const defId = pickWeighted(eligibleRefs, rng);
     const def = ENTITY_DEFS[defId];
     const behavior = def.behavior;
     if (behavior.kind === "walker") {
@@ -410,6 +473,32 @@ export function positionObstacleRow(
     }
     return [instance];
   });
+}
+
+/**
+ * ENT-02 (P10): whether a castle-road row is scripted as a banner-arch
+ * instead of a normal weighted pick, using the injected rng.
+ */
+export function shouldSpawnBannerArch(
+  zoneId: string,
+  rng: () => number,
+): boolean {
+  return zoneId === "castle-road" && rng() < BANNER_ARCH_CHANCE;
+}
+
+/**
+ * Builds one banner-arch hitbox per non-safe lane — a themed skin of the
+ * safe-lane row, not a weighted pick (ENT-02), so `ENT-INV-1` holds by
+ * construction the same way `spawnRow`'s blockAll case already does.
+ */
+export function positionBannerArchRow(
+  safeLane: number,
+  laneCount: number,
+  laneCenterX: (lane: number) => number,
+): EntityInstance[] {
+  return otherLanes(laneCount, safeLane).map((lane) =>
+    placeAtLeadingEdge("banner-arch", lane, laneCenterX(lane)),
+  );
 }
 
 /** Steps a mover's x toward `targetX` at `moveSpeed` px/s once the `moveDelay` countdown (the telegraph) reaches 0; a no-op for static entities (no `targetX`). */

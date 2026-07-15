@@ -8,11 +8,13 @@ import {
   type EntityInstance,
   PLAYER_SIZE,
   pickWeighted,
+  positionBannerArchRow,
   positionCoinTrail,
   positionGem,
   positionObstacleRow,
   rollsCoinTrail,
   SPAWN_TABLE,
+  shouldSpawnBannerArch,
   shouldSpawnGem,
   spawnRow,
 } from "./entities";
@@ -120,6 +122,14 @@ describe("advanceObstacles", () => {
     expect(obstacles[0].y).toBe(15); // speedFactor 1.5
   });
 
+  it("scrolls a roller (town-guard) at its speedFactor times the base scroll (P10)", () => {
+    const obstacles: EntityInstance[] = [
+      { defId: "town-guard", lane: 0, x: 0, y: 0, width: 16, height: 24 },
+    ];
+    advanceObstacles(obstacles, 10, 320, player, 0.016);
+    expect(obstacles[0].y).toBe(6); // speedFactor 0.6
+  });
+
   it("leaves a dart (stray-cat) at its spawn x during the telegraph window", () => {
     const obstacles: EntityInstance[] = [
       {
@@ -215,18 +225,42 @@ describe("SPAWN_TABLE", () => {
   });
 
   it("adds stray-cat/chicken-flock to old-town and market-street only (ENT-02)", () => {
-    for (const zoneId of ["old-town", "market-street"]) {
-      const ids = new Set(SPAWN_TABLE[zoneId].obstacles.map((r) => r.defId));
-      expect([...ids].sort()).toEqual([
-        "chicken-flock",
-        "hay-cart",
-        "market-crate",
-        "stray-cat",
-      ]);
-    }
+    const oldTownIds = new Set(
+      SPAWN_TABLE["old-town"].obstacles.map((r) => r.defId),
+    );
+    expect([...oldTownIds].sort()).toEqual([
+      "chicken-flock",
+      "hay-cart",
+      "market-crate",
+      "stray-cat",
+    ]);
+    const marketIds = new Set(
+      SPAWN_TABLE["market-street"].obstacles.map((r) => r.defId),
+    );
+    expect(marketIds.has("stray-cat")).toBe(true);
+    expect(marketIds.has("chicken-flock")).toBe(true);
     const castleIds = SPAWN_TABLE["castle-road"].obstacles.map((r) => r.defId);
     expect(castleIds).not.toContain("stray-cat");
     expect(castleIds).not.toContain("chicken-flock");
+  });
+
+  it("adds town-guard to market-street and castle-road only, and fountain to market-street only (ENT-02, P10)", () => {
+    for (const zoneId of ["market-street", "castle-road"]) {
+      expect(SPAWN_TABLE[zoneId].obstacles.map((r) => r.defId)).toContain(
+        "town-guard",
+      );
+    }
+    expect(SPAWN_TABLE["old-town"].obstacles.map((r) => r.defId)).not.toContain(
+      "town-guard",
+    );
+    expect(
+      SPAWN_TABLE["market-street"].obstacles.map((r) => r.defId),
+    ).toContain("fountain");
+    for (const zoneId of ["old-town", "castle-road"]) {
+      expect(SPAWN_TABLE[zoneId].obstacles.map((r) => r.defId)).not.toContain(
+        "fountain",
+      );
+    }
   });
 
   it("keeps market-crate's total old-town/market-street weight at 40, split across two refs bracketing the movers", () => {
@@ -239,9 +273,9 @@ describe("SPAWN_TABLE", () => {
   });
 
   it("adds rolling-barrel to castle-road only (ENT-02)", () => {
-    expect(
-      SPAWN_TABLE["castle-road"].obstacles.map((r) => r.defId).sort(),
-    ).toEqual(["hay-cart", "market-crate", "rolling-barrel"]);
+    expect(SPAWN_TABLE["castle-road"].obstacles.map((r) => r.defId)).toContain(
+      "rolling-barrel",
+    );
     for (const zoneId of ["old-town", "market-street"]) {
       expect(SPAWN_TABLE[zoneId].obstacles.map((r) => r.defId)).not.toContain(
         "rolling-barrel",
@@ -441,6 +475,73 @@ describe("positionObstacleRow", () => {
       }
     }
   });
+
+  it("can pick fountain when the blocked lane is the center lane (P10, ENT-02)", () => {
+    // market-street oneLaneRefs (incl. fountain) total 80; roll 76 lands in
+    // fountain's [75,80) share, the last (highest-weight-consumed) slot.
+    const rng = () => 0.95;
+    const [obs] = positionObstacleRow(
+      "market-street",
+      [1],
+      0,
+      laneCount,
+      laneCenterX,
+      pxPerMeter,
+      rng,
+    );
+    expect(obs.defId).toBe("fountain");
+  });
+
+  it("never picks fountain for a non-center blocked lane, swept across the full rng range (P10, ENT-02)", () => {
+    const sample = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999999];
+    for (const lane of [0, 2]) {
+      for (const roll of sample) {
+        const [obs] = positionObstacleRow(
+          "market-street",
+          [lane],
+          1,
+          laneCount,
+          laneCenterX,
+          pxPerMeter,
+          () => roll,
+        );
+        expect(obs.defId).not.toBe("fountain");
+      }
+    }
+  });
+});
+
+describe("shouldSpawnBannerArch", () => {
+  it("only triggers in castle-road", () => {
+    expect(shouldSpawnBannerArch("castle-road", () => 0)).toBe(true);
+    expect(shouldSpawnBannerArch("old-town", () => 0)).toBe(false);
+    expect(shouldSpawnBannerArch("market-street", () => 0)).toBe(false);
+  });
+
+  it("rolls against a fixed chance, so a high roll never triggers it", () => {
+    expect(shouldSpawnBannerArch("castle-road", () => 0.99)).toBe(false);
+  });
+});
+
+describe("positionBannerArchRow", () => {
+  const laneCenterX = (lane: number) => 30 + lane * 100;
+  const laneCount = 3;
+
+  it("places a banner-arch hitbox in every non-safe lane (ENT-INV-1 holds by construction)", () => {
+    for (let safeLane = 0; safeLane < laneCount; safeLane++) {
+      const result = positionBannerArchRow(safeLane, laneCount, laneCenterX);
+      expect(result).toHaveLength(laneCount - 1);
+      expect(result.every((o) => o.defId === "banner-arch")).toBe(true);
+      expect(result.map((o) => o.lane)).not.toContain(safeLane);
+    }
+  });
+
+  it("sizes each hitbox to banner-arch's ENT-02 footprint", () => {
+    const { size } = ENTITY_DEFS["banner-arch"];
+    const [obs] = positionBannerArchRow(0, laneCount, laneCenterX);
+    expect(obs.width).toBe(size.w);
+    expect(obs.height).toBe(size.h);
+  });
 });
 
 describe("ENTITY_DEFS", () => {
@@ -504,6 +605,31 @@ describe("ENTITY_DEFS", () => {
     expect(ENTITY_DEFS["rolling-barrel"].onCollision).toEqual({
       kind: "crash",
     });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint and roller behavior for town-guard (P10)", () => {
+    expect(ENTITY_DEFS["town-guard"].size).toEqual({ w: 16, h: 24 });
+    expect(ENTITY_DEFS["town-guard"].lanes).toBe(1);
+    expect(ENTITY_DEFS["town-guard"].behavior).toEqual({
+      kind: "roller",
+      speedFactor: 0.6,
+    });
+    expect(ENTITY_DEFS["town-guard"].onCollision).toEqual({ kind: "crash" });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint for fountain, restricted to the center lane (P10)", () => {
+    expect(ENTITY_DEFS.fountain.size).toEqual({ w: 40, h: 40 });
+    expect(ENTITY_DEFS.fountain.lanes).toBe(1);
+    expect(ENTITY_DEFS.fountain.behavior).toEqual({ kind: "static" });
+    expect(ENTITY_DEFS.fountain.laneRestriction).toBe("center");
+    expect(ENTITY_DEFS.fountain.onCollision).toEqual({ kind: "crash" });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint for banner-arch (P10)", () => {
+    expect(ENTITY_DEFS["banner-arch"].size).toEqual({ w: 38, h: 24 });
+    expect(ENTITY_DEFS["banner-arch"].lanes).toBe(1);
+    expect(ENTITY_DEFS["banner-arch"].behavior).toEqual({ kind: "static" });
+    expect(ENTITY_DEFS["banner-arch"].onCollision).toEqual({ kind: "crash" });
   });
 });
 

@@ -88,6 +88,21 @@ export const SPRITE_SHEETS: Record<string, SpriteSheetDef> = {
         loop: true,
       },
       gem: { frames: frameBand(128, 12, 12, [0, 12]), fps: 4, loop: true },
+      "town-guard": {
+        frames: frameBand(144, 16, 24, [0]),
+        fps: 1,
+        loop: true,
+      },
+      fountain: {
+        frames: frameBand(168, 40, 40, [0, 40]),
+        fps: 4,
+        loop: true,
+      },
+      "banner-arch": {
+        frames: frameBand(208, 38, 24, [0]),
+        fps: 1,
+        loop: true,
+      },
     },
   },
 };

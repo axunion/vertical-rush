@@ -8,11 +8,13 @@ import {
   ENTITY_DEFS,
   type EntityInstance,
   PLAYER_SIZE,
+  positionBannerArchRow,
   positionCoinTrail,
   positionGem,
   positionObstacleRow,
   rollsCoinTrail,
   SPAWN_TABLE,
+  shouldSpawnBannerArch,
   shouldSpawnGem,
   spawnRow,
 } from "./entities";
@@ -189,17 +191,20 @@ export function createGameController(
       Math.random,
     );
     sim.safeLane = result.safeLane;
-    sim.obstacles.push(
-      ...positionObstacleRow(
-        zone.id,
-        result.blockedLanes,
-        sim.safeLane,
-        GAME_CONFIG.laneCount,
-        laneCenterX,
-        pxPerUnit(),
-        Math.random,
-      ),
-    );
+    // ENT-02 (P10): a scripted castle-road banner-arch reskins the whole
+    // row (all non-safe lanes) instead of the normal weighted pick.
+    const rowObstacles = shouldSpawnBannerArch(zone.id, Math.random)
+      ? positionBannerArchRow(sim.safeLane, GAME_CONFIG.laneCount, laneCenterX)
+      : positionObstacleRow(
+          zone.id,
+          result.blockedLanes,
+          sim.safeLane,
+          GAME_CONFIG.laneCount,
+          laneCenterX,
+          pxPerUnit(),
+          Math.random,
+        );
+    sim.obstacles.push(...rowObstacles);
     if (rollsCoinTrail(zoneSpawn.itemChance, Math.random)) {
       sim.items.push(
         ...positionCoinTrail(sim.safeLane, laneCenterX, pxPerUnit()),

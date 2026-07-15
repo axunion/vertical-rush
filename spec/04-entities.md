@@ -92,6 +92,7 @@ export interface EntityDef {
   sprite: { sheet: string; animation: string } | null; // null = fallback-only entity
   fallback: FallbackShape; // SPEC-RENDER › RND-07
   onCollision: CollisionEffect;
+  laneRestriction?: "center"; // P10: static obstacles only — eligible in the weighted pick only for this lane (fountain)
 }
 
 export interface EntityInstance extends Box {
@@ -118,8 +119,10 @@ Status: partial — `market-crate`/`hay-cart` implemented (P2); `coin`
 implemented (P4); `gem` implemented (P5); movers (`stray-cat`/
 `chicken-flock`/`rolling-barrel`) implemented (P5, `src/entities.ts`
 `ENTITY_DEFS`, `moverTargetLane`, `attachDartMotion`, `positionChickenFlock`,
-`stepMover`); `town-guard`/`fountain`/`banner-arch` planned (P10);
-`sweet-roll`/`hourglass`/`magnet` planned (P11)
+`stepMover`); `town-guard`/`fountain`/`banner-arch` implemented (P10,
+`src/entities.ts` `ENTITY_DEFS`, the `laneRestriction` field,
+`shouldSpawnBannerArch`, `positionBannerArchRow`); `sweet-roll`/`hourglass`/
+`magnet` planned (P11)
 
 `ENT-02` — **source of truth** for mechanical values. Ids pair 1:1 with
 `SPEC-WORLD` (`WLD-01`). Sizes are logical px on the 180×320 grid
@@ -132,9 +135,9 @@ implemented (P4); `gem` implemented (P5); movers (`stray-cat`/
 | `stray-cat` | obstacle | 16×12 | 1 | dart (telegraph 0.5 s, hop 0.3 s) | crash | 15 | old-town, market-street | **P5** |
 | `chicken-flock` | obstacle | 3 birds, 12×12 each, staggered `CHICKEN_FLOCK.spacingM` (0.6 m) apart | 1 (each bird) | walker (crossSpeed 90 px/s) | crash | 12 | old-town, market-street | **P5** |
 | `rolling-barrel` | obstacle | 20×20 | 1 | roller (speedFactor 1.5×) | crash | 10 | castle-road | **P5** |
-| `town-guard` | obstacle | 16×24 | 1 | roller (0.6× world speed) | crash | 8 | market-street, castle-road | P10 |
-| `fountain` | obstacle | 40×40 | 1 (center only) | static | crash | 5 | market-street | P10 |
-| `banner-arch` | obstacle | visual 156×24; hitbox 38×24 per blocked lane | full row | static | crash | scripted | castle-road | P10 |
+| `town-guard` | obstacle | 16×24 | 1 | roller (0.6× world speed) | crash | 8 | market-street, castle-road | **P10** |
+| `fountain` | obstacle | 40×40 | 1 (`laneRestriction: "center"`) | static | crash | 5 | market-street | **P10** |
+| `banner-arch` | obstacle | 38×24 per blocked-lane hitbox | 1 (scripted, one per non-safe lane) | static | crash | scripted (not weighted) | castle-road | **P10** |
 | `coin` | item | 12×12 | 1 | static | collect +10, sfx `coin` | trail rule below | all | **P4** |
 | `gem` | item | 12×12 | 1 | static | collect +50, sfx `coin` | 1 per zone | all | **P5** |
 | `sweet-roll` | item | 14×14 | 1 | static | shield *(planned effect)* | rare | all | P11 |
@@ -158,22 +161,36 @@ pick attaches dart-hop motion (`attachDartMotion`) to the single placed
 instance, and a `chicken-flock` pick calls `positionChickenFlock` to return
 `CHICKEN_FLOCK.count` staggered instances instead of one. The function's
 signature grew `safeLane`/`laneCount`/`pxPerMeter` params to support this —
-existing static-only obstacles ignore them.
+existing static-only obstacles ignore them. P10 added one more per-lane
+filter, not a new dispatch branch: a candidate one-lane ref is excluded
+unless its `EntityDef.laneRestriction` (if set) matches the lane being
+filled — `fountain`'s `"center"` restriction is the only user today.
+`town-guard` (an ordinary `roller` ref) needed no dispatch change at all,
+which is `ENT-05`'s data-only proof.
 
-Planned placement rules for the P10 rows:
+Placement rules for the P10 rows (implemented):
 
-- *`fountain` (planned, P10)*: eligible in the weighted pick only when the
-  blocked lane being filled is the center lane; the implementation shape is
-  decided during P10.
-- *`banner-arch` (planned, P10)*: not a weighted pick — a scripted
-  castle-road row variant: each non-safe lane gets a 38×24 hitbox under one
-  156-wide visual, so `ENT-INV-1` holds by construction. Trigger frequency
-  is tuned during P10.
+- `fountain`: restricted via the `laneRestriction: "center"` filter above —
+  eligible only when the lane being filled equals
+  `Math.floor(laneCount / 2)`.
+- `banner-arch`: not a weighted pick. `src/gameController.ts`
+  `spawnObstacleRow` calls `shouldSpawnBannerArch(zone.id, Math.random)`
+  before the normal obstacle placement; when it rolls true (`castle-road`
+  only, a flat chance), `positionBannerArchRow` replaces the row's obstacles
+  with one 38×24 `banner-arch` hitbox per non-safe lane — always the full
+  row minus the safe lane, regardless of `spawnRow`'s own `doubleChance`
+  roll — so `ENT-INV-1` holds by construction the same way `spawnRow`'s own
+  blockAll case does. Each hitbox is authored as its own 38×24 sprite
+  segment rather than one continuous 156-wide image (`SPEC-RENDER ›
+  RND-08`): reusing the generic per-instance sprite/fallback dispatch
+  (`RND-06`) needs no new rendering machinery, and adjacent segments still
+  read as one banner when two lanes are blocked.
 
 ## Spawning
 
 Status: implemented — the zone-keyed `SPAWN_TABLE`, its consumers, and movers
-(`ENT-INV-2`) are all implemented (P5)
+(`ENT-INV-2`) are all implemented (P5); `town-guard`/`fountain`/`banner-arch`
+spawn rules implemented (P10)
 
 Canonical (`src/entities.ts`):
 
@@ -206,7 +223,10 @@ export const SPAWN_TABLE: Record<string /* zone id, SPEC-CORE › CORE-03 */, Zo
   `SPAWN_TABLE[zoneId].obstacles` filtered to the lane count needed (`ENT-05`
   extensibility contract). `old-town`/`market-street` add `stray-cat`/
   `chicken-flock` to the base `market-crate`/`hay-cart` pool; `castle-road`
-  adds `rolling-barrel` instead.
+  adds `rolling-barrel` instead. `market-street`/`castle-road` additionally
+  add `town-guard` (P10), and `market-street` adds the center-lane-only
+  `fountain` (P10). `castle-road` rows may instead be scripted as a
+  `banner-arch` row (P10) — see the placement rules below.
 - `ENT-03` **Coin trail rule** (`src/entities.ts` `COIN_TRAIL`,
   `positionCoinTrail`, `rollsCoinTrail`): when a row rolls under the active
   zone's `SPAWN_TABLE[zoneId].itemChance` (0.6, flat across zones today),
@@ -275,7 +295,10 @@ gem support via CollectedItem.defId)
 
 ## Extensibility contract
 
-Status: planned (P10 — proven when `town-guard` lands via steps 1–3 alone)
+Status: implemented (P10 — proven by `town-guard`, which landed via steps
+1–3 alone: an `EntityDef` in `ENTITY_DEFS` plus a `WeightedRef` in
+`market-street`/`castle-road`'s `SPAWN_TABLE` pools, with zero edits to
+`src/gameController.ts`, `src/render/entities-draw.ts`, or `src/gameLogic.ts`)
 
 `ENT-05` — Adding a new **static obstacle or score item** touches only data:
 
@@ -289,16 +312,19 @@ No edits to `src/gameController.ts`, `src/render/entities-draw.ts` (the
 render dispatch), or `gameLogic.ts`. A new *behavior kind* or *effect kind* is
 the one case that legitimately extends the unions and the shell's dispatch —
 that is a design change, not content. P5 shipped its new entities via that
-carve-out (see the P5 note in `SPEC-ROADMAP › Completed phases (P0–P9)`), so
-the data-only path is proven
-by the first future entity that lands via steps 1–3 alone — scheduled as
-`town-guard` in P10. A new `FallbackShape` drawer is the `RND-07`-sanctioned
-rare addition and does not void the claim: the contract governs the loop,
-collision, and dispatch code, not fallback art.
+carve-out (see the P5 note in `SPEC-ROADMAP › Completed phases (P0–P10)`), so
+the data-only path needed a future entity that lands via steps 1–3 alone to
+prove it — `town-guard` did exactly that in P10 (an ordinary `roller`
+`WeightedRef`, no new behavior/effect kind, no dispatch edits). A new
+`FallbackShape` drawer is the `RND-07`-sanctioned rare addition and does not
+void the claim: the contract governs the loop, collision, and dispatch code,
+not fallback art — P10 added three such drawers (`guard`/`fountain`/`banner`)
+alongside `town-guard`/`fountain`/`banner-arch` without touching the loop,
+collision, or dispatch.
 
 ## Sprite binding
 
-Status: implemented (P7, src/entities.ts ENTITY_DEFS, src/sprites.ts SPRITE_SHEETS.entities)
+Status: implemented (P7, src/entities.ts ENTITY_DEFS, src/sprites.ts SPRITE_SHEETS.entities; extended P10)
 
 `ENT-06` — Every `ENTITY_DEFS` row binds to the `entities` sprite sheet
 (`SPEC-RENDER › RND-08`) as `sprite: { sheet: "entities", animation: <its own

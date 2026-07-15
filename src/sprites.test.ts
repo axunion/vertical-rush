@@ -69,18 +69,21 @@ describe("SPRITE_SHEETS", () => {
 
   it("defines the entities sheet with one band per entity on the RND-08 grid", () => {
     const SHEET_W = 80;
-    const SHEET_H = 144;
+    const SHEET_H = 232;
     const entities = SPRITE_SHEETS.entities;
     expect(entities.src).toBe("/assets/sheets/entities.png");
     expect(Object.keys(entities.animations).sort()).toEqual(
       [
+        "banner-arch",
         "chicken-flock",
         "coin",
+        "fountain",
         "gem",
         "hay-cart",
         "market-crate",
         "rolling-barrel",
         "stray-cat",
+        "town-guard",
       ].sort(),
     );
 
