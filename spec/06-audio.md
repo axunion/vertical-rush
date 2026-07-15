@@ -2,7 +2,7 @@
 id: SPEC-AUDIO
 title: Audio (SFX Catalog & Music Direction)
 status: partial
-code: [src/audio.ts, src/App.tsx]
+code: [src/audio.ts, src/gameController.ts, src/App.tsx]
 ---
 
 # Audio
@@ -49,7 +49,7 @@ item with a new sound means adding a voice here first.
 ## AUD-03 — BGM
 
 Status: implemented (P5: src/audio.ts createSfx's startBgm/setBgmZone/
-setBgmDucked/stopBgm; src/App.tsx wiring)
+setBgmDucked/stopBgm; src/gameController.ts/src/App.tsx wiring)
 
 Procedural chip loop scheduled with `AudioContext` look-ahead (the standard
 two-timer pattern: a `setInterval` scheduler tops up a `bgmNextStepTime`
@@ -67,8 +67,8 @@ comes from tempo, key stays fixed:
 - Key stays **C major** so the `levelUp` fanfare (C5–E5–G5) always lands
   consonant over the loop.
 - Master BGM gain ~0.04 (`BGM_MASTER_GAIN`); ducks 50% while a zone banner is
-  showing (`src/App.tsx` toggles `sfx.setBgmDucked` on `sim.bannerTime`'s
-  edge, not every frame, to avoid redundant gain ramps).
+  showing (`src/gameController.ts` toggles `sfx.setBgmDucked` on
+  `sim.bannerTime`'s edge, not every frame, to avoid redundant gain ramps).
 - BGM starts with `running` (`start()` calls `sfx.startBgm`) and stops
   (0.4 s linear release, not a hard cut) on `cleared`/`gameover`
   (`sfx.stopBgm()`, alongside `sfx.clear()`/`sfx.gameOver()`).

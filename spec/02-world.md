@@ -2,7 +2,7 @@
 id: SPEC-WORLD
 title: World, Cast & Art Style
 status: partial
-code: [src/entities.ts, src/sprites.ts, src/render.ts]
+code: [src/entities.ts, src/sprites.ts, src/render/]
 ---
 
 # World, Cast & Art Style
@@ -42,9 +42,9 @@ for free: run forward, don't touch anything, the goal is a gate.
 
 ## Protagonist: Poco (`poco`)
 
-Status: implemented — fallback look (P2, src/render.ts drawFallback
+Status: implemented — fallback look (P2, src/render/shapes.ts drawFallback
 `"runner"`) and sprite sheet + animation states (P3, public/assets/sheets/poco.png,
-src/sprites.ts, src/render.ts drawPlayer)
+src/sprites.ts, src/render/entities-draw.ts drawPlayer)
 
 - **Silhouette:** chibi, 2 heads tall, carrying a square cake box overhead —
   the box extends the silhouette upward, reads instantly at mobile size, and
@@ -104,7 +104,7 @@ normative in `SPEC-ENTITIES › ENT-03`.
 
 ## Base palette
 
-Status: implemented (src/App.tsx GAME_CONFIG.colors)
+Status: implemented (src/config.ts GAME_CONFIG.colors)
 
 `WLD-02` — **source of truth** for the Karamell palette. 12 colors, warm and
 mobile-readable: entities stay warm/saturated, the road stays neutral so they
@@ -131,7 +131,7 @@ Particle colors move to `gold` / `warm-white` / `terracotta` (dust) and
 
 ## Art style rules
 
-Status: implemented — `WLD-03`/`WLD-04` (P2), `WLD-05` (P5, src/render.ts
+Status: implemented — `WLD-03`/`WLD-04` (P2), `WLD-05` (P5, src/render/landmarks.ts
 drawCastleGate)
 
 - `WLD-03` Pixel art on a 16 px background tile grid at the 180×320 logical
@@ -143,7 +143,7 @@ drawCastleGate)
   painters, not entities — see `SPEC-RENDER › RND-06`.
 - `WLD-05` The goal line becomes the **castle gate**: a road-spanning gate
   (flanking stone towers, a flat-color torch-flame accent, the checkered
-  drawbridge-deck threshold) drawn by `src/render.ts` `drawCastleGate`. Poco's
+  drawbridge-deck threshold) drawn by `src/render/landmarks.ts` `drawCastleGate`. Poco's
   `victory` animation plays in front of it on clear.
 - Typography: HUD/overlay text may keep the current sans-serif stack for now;
   an embedded pixel font is scheduled (`SPEC-ROADMAP › P12`). UI display text

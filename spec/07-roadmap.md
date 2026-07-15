@@ -7,9 +7,9 @@ code: []
 
 # Implementation Roadmap
 
-Ordered phases. **P0–P8 are complete** — one-line summaries below; their full
+Ordered phases. **P0–P9 are complete** — one-line summaries below; their full
 scope, completion criteria, and verification text lives in git history.
-Scheduled work is **P9–P12**; remaining ideas live in the unscheduled backlog
+Scheduled work is **P10–P12**; remaining ideas live in the unscheduled backlog
 at the bottom. Each phase is **independently shippable**: the game is
 complete-feeling at every phase boundary. Do not start backlog scope without
 first scheduling it into a phase.
@@ -26,7 +26,7 @@ Completion additionally requires flipping the relevant `Status:` lines in
 these specs from `planned (Pn)` to `implemented (module symbol)` in the same
 commit — that is what keeps spec/code drift structurally bounded.
 
-## Completed phases (P0–P8)
+## Completed phases (P0–P9)
 
 Status: implemented
 
@@ -57,60 +57,18 @@ One line per phase; details are in git history.
 - **P8 — Background tile pipeline.** `town` tile manifest (`TILE_SHEETS`,
   `RND-09`), image branches in the background painters with the procedural
   fallback intact (`RND-INV-1`), authored `town.png`.
-
-## P9 — Codebase restructure (zero behavior change)
-
-Status: planned (P9)
-
-A second extraction pass with P1's discipline: `src/render.ts` (~1300 lines)
-and `src/App.tsx` (~780 lines) have grown far past the one-concern-per-file
-rule; split them before any new content lands on top.
-
-**Scope:**
-
-- Split `src/render.ts` into a `src/render/` directory. Planned map (exact
-  boundaries may shift during the phase; the gate below may not):
-  `types.ts`, `helpers.ts` (color/cache/stroke utilities), `display.ts`
-  (display-fit pipeline), `sheets.ts` (image loading), `particles.ts`
-  (particle/speed-line sim + draw), `road.ts` (road/curb/lane painters +
-  tile-pattern caches), `landmarks.ts` (castle gate + zone landmarks),
-  `shapes.ts` (fallback shape painters), `entities-draw.ts`
-  (sprite/entity/player dispatch), `frame.ts` (`renderFrame` orchestrator +
-  banner), and an `index.ts` barrel re-exporting the current public surface
-  so `import ... from "./render"` call sites stay valid.
-- Extract from `src/App.tsx`: `src/config.ts` (`GAME_CONFIG`,
-  `ZONE_PALETTES`, and the derived zone constants), `src/zoneVisuals.ts`
-  (pure zone crossfade/color functions), and `src/gameController.ts` (the
-  `sim` blob, spawn/collision/update functions, and the per-frame step —
-  Solid-free, with the signal accessors injected). `App.tsx` keeps signals,
-  input/DOM wiring, and JSX.
-- Add unit tests (node environment) for the newly isolated pure functions:
-  the color/cache helpers, `computeDisplayFit`, the particle/speed-line sim
-  helpers, and the zone-visual functions.
-- **No new dependencies.** Evaluated and rejected for now: game/rendering
-  frameworks (they would replace the speced `RND-01/02/03` pipeline and
-  break the verify skill's pixel scan), state libraries (the signal-vs-`sim`
-  split is deliberate — `SPEC-OVERVIEW › Glossary`), audio libraries (the
-  P12 authored-audio option fits the existing Web Audio gain graph via
-  `decodeAudioData`), and test-environment additions such as jsdom (the
-  browser verify skill covers the DOM/canvas surface; revisit only if the
-  Solid-free game controller needs node tests that prove impossible
-  without one).
-
-**Completion criteria:**
-
-- Zero behavior change: no gameplay, difficulty, palette, or timing value
-  changes; the verify skill passes **unedited** (the P1 precedent).
-- Every spec `Status:` line whose module/symbol reference moves is repointed
-  in the same commit (notably `RND-05`/`WLD-02`: `src/App.tsx
-  GAME_CONFIG.colors` → its new home), and `SPEC-ENTITIES › Target module
-  layout` plus the `CLAUDE.md` Architecture section describe the new layout.
-- New unit tests exist for the newly-pure extracted functions; existing
-  tests stay green with at most import-path edits.
-
-**Verification:** the standard triplet, plus a diff review confirming the
-change is move-only (no logic edits beyond import paths and the
-controller's explicit-parameter seams).
+- **P9 — Codebase restructure (zero behavior change).** A second P1-style
+  extraction pass, move-only: `src/render.ts` split into `src/render/`
+  (`types.ts`/`helpers.ts`/`display.ts`/`sheets.ts`/`particles.ts`,
+  node-importable, plus DOM-only `road.ts`/`landmarks.ts`/`shapes.ts`/
+  `entities-draw.ts`/`frame.ts`, with an `index.ts` barrel keeping the
+  public surface stable); `src/App.tsx` split into `src/config.ts`
+  (`GAME_CONFIG`/zone palettes/`GamePhase`), `src/zoneVisuals.ts` (pure
+  crossfade helpers), and `src/gameController.ts` (the `sim` blob and
+  update/spawn/collision steps, Solid-free via injected hooks). New unit
+  tests cover the newly node-importable pure functions
+  (`src/render/helpers.test.ts`, `display.test.ts`, `particles.test.ts`,
+  `src/zoneVisuals.test.ts`); the verify skill passed unedited.
 
 ## P10 — Remaining obstacle cast (proves ENT-05)
 
@@ -124,7 +82,8 @@ extensibility claim.
 
 - `town-guard` (16×24): reuses the existing `roller` behavior at 0.6× world
   speed, so it must land via `ENT-05` steps 1–3 alone — no edits to
-  `App.tsx`, the render dispatch, or `gameLogic.ts`.
+  `src/gameController.ts`, `src/render/entities-draw.ts` (the render
+  dispatch), or `src/gameLogic.ts`.
 - `fountain` (40×40, static): eligible in the weighted pick only when the
   row's blocked lane is the center lane (`ENT-02`).
 - `banner-arch` (visual 156×24, hitbox 38×24 per blocked lane): a scripted

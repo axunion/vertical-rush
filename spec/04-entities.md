@@ -2,7 +2,7 @@
 id: SPEC-ENTITIES
 title: Entity System (Registry, Spawning, Items)
 status: partial
-code: [src/entities.ts, src/gameLogic.ts, src/App.tsx]
+code: [src/entities.ts, src/gameLogic.ts, src/gameController.ts, src/App.tsx]
 ---
 
 # Entity System
@@ -39,16 +39,20 @@ Status: implemented — modules, the canonical logical-px `EntityDef.size`
 schema, `src/sprites.ts`, the pure score helper, `ZONE_TABLE`-driven
 `calculateLevel`, and the zone-keyed `SPAWN_TABLE` are all implemented (P1
 extraction, P2 canonical schema, P3 sprite manifest, P4 score, P5 zones +
-spawn table)
+spawn table); the `src/render/` split and the `config.ts`/`zoneVisuals.ts`/
+`gameController.ts` extraction from `App.tsx` are P9's second extraction pass
 
 | Module | Responsibility | Purity |
 |---|---|---|
 | `src/gameLogic.ts` | Existing rules + `ZONE_TABLE`-driven `calculateLevel` + `calculateScore` (`SPEC-CORE`) | pure, tested |
 | `src/entities.ts` | `EntityDef` types, `ENTITY_DEFS` registry, pure spawn-row generation with an injected `rng: () => number`, `COIN_TRAIL` + the coin-trail/pickup/gem helpers; the zone-keyed `SPAWN_TABLE` | pure, tested |
 | `src/sprites.ts` | Sprite-sheet manifest types + data + pure frame picking (`SPEC-RENDER › RND-04`) | pure, tested |
-| `src/render.ts` | Draw dispatcher, parameterized fallback drawers, pixel pipeline, image loading (`SPEC-RENDER`) | DOM/Canvas |
+| `src/render/` | Draw dispatcher, parameterized fallback drawers, pixel pipeline, image loading (`SPEC-RENDER`), split (P9) into `types.ts`/`helpers.ts`/`display.ts`/`sheets.ts`/`particles.ts` (no top-level DOM — node-importable, some now unit-tested) and `road.ts`/`landmarks.ts`/`shapes.ts`/`entities-draw.ts`/`frame.ts` (hold the module-level `CanvasPattern`/`DOMMatrix` caches), plus an `index.ts` barrel re-exporting the pre-P9 public surface | DOM/Canvas (`index.ts`/`road.ts`/`landmarks.ts`/`shapes.ts`/`entities-draw.ts`/`frame.ts`); pure (`types.ts`/`helpers.ts`/`display.ts`/`sheets.ts`/`particles.ts`) |
 | `src/audio.ts` | `createSfx` extracted from App.tsx + SFX catalog (`SPEC-AUDIO`) | Web Audio |
-| `src/App.tsx` | Orchestration only: loop, input, phase signals, HUD/overlay JSX, view/feel tunables in `GAME_CONFIG` | shell |
+| `src/config.ts` | `GAME_CONFIG`, `ZONE_PALETTES`/`ZONE_STEADY_COLORS`/`ZONE_STEADY_BLEND`, `GamePhase`, `BEST_SCORE_KEY` — extracted from App.tsx (P9) | pure, data-only |
+| `src/zoneVisuals.ts` | Pure `frameZoneBlend`/`frameColors` zone-crossfade helpers, taking distance/fade state as explicit params instead of closing over `sim` — extracted from App.tsx (P9) | pure, tested |
+| `src/gameController.ts` | `createGameController`: owns the per-frame `sim` blob and every update/spawn/collision/finish-run step; Solid-free — `sfx` and the phase/score signal accessors are injected as explicit parameters (`GameControllerHooks`), not imported — extracted from App.tsx (P9) | Solid-free (uses `Math.random`/`localStorage`, no `window`/`document`/Canvas/SolidJS) |
+| `src/App.tsx` | Orchestration only: loop, input, phase signals, HUD/overlay JSX, `resize`/canvas wiring, wires `gameController`'s hooks to Solid signals | shell |
 
 The rng injection exists so the e2e harness's `Math.random` stubbing keeps
 producing deterministic runs — the shell passes `Math.random` in production.
@@ -281,11 +285,12 @@ Status: planned (P10 — proven when `town-guard` lands via steps 1–3 alone)
 3. Optional: add sprite frames to the manifest (`src/sprites.ts`) — or set
    `sprite: null` and reuse a `FallbackShape`.
 
-No edits to `App.tsx`, `render.ts` dispatch, or `gameLogic.ts`. A new
-*behavior kind* or *effect kind* is the one case that legitimately extends the
-unions and the shell's dispatch — that is a design change, not content.
-P5 shipped its new entities via that carve-out (see the P5 note in
-`SPEC-ROADMAP › Completed phases (P0–P8)`), so the data-only path is proven
+No edits to `src/gameController.ts`, `src/render/entities-draw.ts` (the
+render dispatch), or `gameLogic.ts`. A new *behavior kind* or *effect kind* is
+the one case that legitimately extends the unions and the shell's dispatch —
+that is a design change, not content. P5 shipped its new entities via that
+carve-out (see the P5 note in `SPEC-ROADMAP › Completed phases (P0–P9)`), so
+the data-only path is proven
 by the first future entity that lands via steps 1–3 alone — scheduled as
 `town-guard` in P10. A new `FallbackShape` drawer is the `RND-07`-sanctioned
 rare addition and does not void the claim: the contract governs the loop,

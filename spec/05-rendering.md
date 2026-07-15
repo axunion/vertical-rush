@@ -2,7 +2,7 @@
 id: SPEC-RENDER
 title: Rendering (Pixel Pipeline, Sprites, Fallback)
 status: implemented
-code: [src/render.ts, src/sprites.ts, src/App.tsx]
+code: [src/render/, src/sprites.ts, src/config.ts, src/gameController.ts, src/App.tsx]
 ---
 
 # Rendering
@@ -19,15 +19,16 @@ Status: implemented — see the marker on the invariant
   `Image` `onerror`/`onload` resolving to `null` on failure, never thrown);
   tests and CI never require binary assets; a fallback drawing renders the
   **same logical footprint (Box)** as its sprite so collision feel is
-  identical either way. *(implemented: `src/render.ts` `loadSpriteSheets`
-  resolves each sheet to `null` on `onerror`, never throws; `drawEntity`/
-  `drawPlayer` fall back to `drawFallback`'s primitive shapes whenever a sheet
+  identical either way. *(implemented: `src/render/sheets.ts`
+  `loadSpriteSheets` resolves each sheet to `null` on `onerror`, never throws;
+  `src/render/entities-draw.ts` `drawEntity`/`drawPlayer` fall back to
+  `src/render/shapes.ts` `drawFallback`'s primitive shapes whenever a sheet
   or animation is missing — verified by moving `public/assets/sheets/` away
   entirely)*
 
 ## RND-01 — Logical resolution: 180×320
 
-Status: implemented (src/entities.ts PLAYER_SIZE, src/App.tsx GAME_CONFIG.logical/view)
+Status: implemented (src/entities.ts PLAYER_SIZE, src/config.ts GAME_CONFIG.logical, src/App.tsx view)
 
 **Source of truth** for the pixel grid:
 
@@ -48,7 +49,7 @@ removes today's resize-time geometry recomputation. `pxPerUnit` becomes
 
 ## RND-02 — Scaling contract
 
-Status: implemented (src/render.ts computeDisplayFit/sizeDisplayCanvas/blitFrame)
+Status: implemented (src/render/display.ts computeDisplayFit/sizeDisplayCanvas/blitFrame)
 
 1. Every frame renders to an **offscreen canvas fixed at 180×320**.
 2. The display canvas keeps backing store = CSS size × DPR (as today). Blit
@@ -110,13 +111,13 @@ tools enter the picture later.
 `poco.png` layout (24×32 frames on a 96×160 sheet, one animation per row,
 states from `SPEC-WORLD`) — implemented exactly as authored: row 0 `idle`(2),
 row 1 `run`(4), row 2 `switch`(2, facing right — mirrored via a negative-scale
-`drawImage` for left, `src/render.ts` `drawPlayer`), row 3 `crash`(3), row 4
+`drawImage` for left, `src/render/entities-draw.ts` `drawPlayer`), row 3 `crash`(3), row 4
 `victory`(2). The PNG itself reuses the fallback runner's palette and
 proportions so the sprite and fallback read as the same character.
 
 ## RND-05 — Player key color (e2e harness coupling)
 
-Status: implemented (src/App.tsx GAME_CONFIG.colors.rustRed, .claude/skills/verify/SKILL.md)
+Status: implemented (src/config.ts GAME_CONFIG.colors.rustRed, .claude/skills/verify/SKILL.md)
 
 The verify skill (`.claude/skills/verify/SKILL.md`) locates the player by
 scanning a canvas pixel row for the player body color — today `#ff7a29` with
@@ -153,7 +154,7 @@ implemented P7/P8):
 
 ## RND-06 — Draw dispatcher and background painters
 
-Status: implemented (src/render.ts drawEntity, drawPlayer)
+Status: implemented (src/render/entities-draw.ts drawEntity, drawPlayer)
 
 - One entry point per entity: `drawEntity(ctx, instance, def, colors, sheets,
   timeSec)` (the actual signature keeps `colors` alongside `sheets`/`timeSec`
@@ -171,12 +172,13 @@ Status: implemented (src/render.ts drawEntity, drawPlayer)
   `"runner"` fallback shape.
 - Scenery is **not** entities: cobblestone road, curb tiles, lane markers, the
   castle-gate goal, zone landmark props, and particles remain named painter
-  functions in `src/render.ts` (`SPEC-WORLD › WLD-04`). Forcing scenery into
-  the registry is over-abstraction; it has no collision or spawn semantics.
+  functions in `src/render/` (`road.ts`/`landmarks.ts`/`particles.ts`,
+  `SPEC-WORLD › WLD-04`). Forcing scenery into the registry is
+  over-abstraction; it has no collision or spawn semantics.
 
 ## RND-07 — Fallback shapes
 
-Status: implemented (src/entities.ts FallbackShape, src/render.ts drawFallback) — the `FallbackShape` union has 8 members (`runner`/`crate`/`cart`/`coin`/`gem`/`cat`/`chicken`/`barrel`); `coin` landed in P4 (src/render.ts drawCoinShape), `gem`/`cat`/`chicken`/`barrel` landed in P5 (src/render.ts drawGemShape/drawCatShape/drawChickenShape/drawBarrelShape)
+Status: implemented (src/entities.ts FallbackShape, src/render/shapes.ts drawFallback) — the `FallbackShape` union has 8 members (`runner`/`crate`/`cart`/`coin`/`gem`/`cat`/`chicken`/`barrel`); `coin` landed in P4 (src/render/shapes.ts drawCoinShape), `gem`/`cat`/`chicken`/`barrel` landed in P5 (src/render/shapes.ts drawGemShape/drawCatShape/drawChickenShape/drawBarrelShape)
 
 Canonical (target: `src/entities.ts`):
 
@@ -210,8 +212,8 @@ change in the same commit.
 
 Status: implemented — `poco.png` (P3), `entities.png` (P7, src/sprites.ts
 SPRITE_SHEETS.entities, src/entities.ts ENTITY_DEFS), and `town.png` (P8,
-src/sprites.ts TILE_SHEETS.town, src/render.ts drawRoad/drawCurbs/
-drawCastleGate/drawZoneLandmark) are all authored under
+src/sprites.ts TILE_SHEETS.town, src/render/road.ts drawRoad/drawCurbs,
+src/render/landmarks.ts drawCastleGate/drawZoneLandmark) are all authored under
 `public/assets/sheets/` and loaded; `RND-INV-1`'s fallback path is exercised
 identically whenever any one of the three is absent
 
@@ -326,7 +328,7 @@ CORE-03`. **Source of truth** for the sheet layout:
 
 - Manifests (`SPRITE_SHEETS`, `TILE_SHEETS`) live in `src/sprites.ts` and are
   bundled; only PNGs live under `public/`.
-- Loading: `src/render.ts` `loadSpriteSheets` builds a per-sheet promise
+- Loading: `src/render/sheets.ts` `loadSpriteSheets` builds a per-sheet promise
   resolving to `null` on error (`Image` `onload`/`onerror`); remember Vite
   serves 200 text/html for missing `/assets/*` (SPA fallback), so failure
   detection must come from the `Image` element, never HTTP status.
@@ -342,8 +344,8 @@ CORE-03`. **Source of truth** for the sheet layout:
 
 ## RND-09 — Tile-region manifest & background image painters
 
-Status: implemented (P8, src/sprites.ts TILE_SHEETS, src/render.ts drawRoad/
-drawCurbs/drawCastleGate/drawZoneLandmark)
+Status: implemented (P8, src/sprites.ts TILE_SHEETS, src/render/road.ts
+drawRoad/drawCurbs, src/render/landmarks.ts drawCastleGate/drawZoneLandmark)
 
 `town.png` is region-based, not animated, so it gets its own minimal manifest
 type instead of overloading `SpriteSheetDef` with animation semantics.
@@ -362,7 +364,7 @@ export const TILE_SHEETS: Record<string, TileSheetDef> = {
 };
 ```
 
-- `src/render.ts` `loadSpriteSheets` loosens its input type to
+- `src/render/sheets.ts` `loadSpriteSheets` loosens its input type to
   `Record<string, { src: string }>` (it only reads `src`), so the shell loads
   `{ ...SPRITE_SHEETS, ...TILE_SHEETS }` into the one existing sheet-image
   map — ids (`poco`/`entities`/`town`) are disjoint.

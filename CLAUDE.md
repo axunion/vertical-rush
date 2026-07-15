@@ -91,25 +91,57 @@ staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
   tile-region manifest (`TILE_SHEETS`), and the pure frame picker `frameAt`.
   No UI dependencies; covered by `src/sprites.test.ts`; change logic
   test-first.
-- `src/render.ts` — the fixed 180×320 offscreen/display canvas pipeline
-  (`computeDisplayFit`, `sizeDisplayCanvas`, `createOffscreenCanvas`,
-  `blitFrame`), the draw dispatcher (`drawEntity`/`drawPlayer`/`drawFallback`),
-  the background painters (`drawRoad`/`drawCurbs`/`drawCastleGate`/
-  `drawZoneLandmark`) with their cached tile patterns, the per-sheet sprite
-  loader (`loadSpriteSheets`), and the particle/speed-line system. Canvas/DOM
-  allowed, no SolidJS.
+- `src/render/` — the rendering pipeline, split (P9) into node-importable
+  pure files and DOM-only files, plus a barrel:
+  - `types.ts` — shared render types (`View`, `RenderColors`, `ZoneBlend`,
+    `FrameConfig`, etc.), no logic.
+  - `helpers.ts` — color/cache/stroke utilities (`cachedBy`, `withAlpha`,
+    `lerpHexColor`, `roundBox`, `wrapOffset`, `zoneDisplayName`).
+  - `display.ts` — the fixed 180×320 offscreen/display canvas pipeline
+    (`computeDisplayFit`, `sizeDisplayCanvas`, `createOffscreenCanvas`,
+    `blitFrame`).
+  - `sheets.ts` — the per-sheet sprite loader (`loadSpriteSheets`).
+  - `particles.ts` — the particle/speed-line simulation and draw.
+  - `road.ts` / `landmarks.ts` — the background painters (`drawRoad`/
+    `drawCurbs`/`drawCastleGate`/`drawZoneLandmark`) with their cached
+    tile patterns; hold the module-level `DOMMatrix` transforms, so these
+    (and `shapes.ts`/`entities-draw.ts`/`frame.ts` below) cannot be
+    imported under Vitest's node environment.
+  - `shapes.ts` — the parameterized fallback shape drawers (`drawFallback`).
+  - `entities-draw.ts` — the draw dispatcher (`drawEntity`/`drawPlayer`).
+  - `frame.ts` — the `renderFrame` orchestrator and `drawBanner`.
+  - `index.ts` — a barrel re-exporting the public surface; import from
+    `"./render"` unless you specifically need a node-importable submodule
+    (see `zoneVisuals.ts` below).
+  Canvas/DOM allowed throughout, no SolidJS.
 - `src/audio.ts` — `createSfx` (Web Audio synth voices), the `SfxId`
   catalog, and the procedural BGM system (`startBgm`/`setBgmZone`/
   `setBgmDucked`/`stopBgm`).
+- `src/config.ts` — `GAME_CONFIG` (view/feel/particle tunables),
+  `ZONE_PALETTES`/`ZONE_STEADY_COLORS`/`ZONE_STEADY_BLEND`, `GamePhase`,
+  `BEST_SCORE_KEY`. Data only, no logic.
+- `src/zoneVisuals.ts` — pure `frameZoneBlend`/`frameColors` zone-crossfade
+  helpers; take distance/fade state as explicit parameters instead of
+  closing over `sim`, so they stay node-testable. Imports render helpers
+  from `render/helpers.ts`/`render/types.ts` directly (not the `render/index.ts`
+  barrel) to avoid pulling in the DOM-only files above.
+- `src/gameController.ts` — `createGameController(view, sfx, hooks)` owns
+  the per-frame `sim` blob and every update/spawn/collision/finish-run step
+  (`resetSim`/`moveLane`/`spawnObstacleRow`/`collectItems`/`crash`/
+  `updateGame`/`updateAmbient`/`updatePlayerAnim`). Solid-free: `sfx` and the
+  phase/score signal accessors are injected via `GameControllerHooks`, not
+  imported. Collision checks must go through `checkCollision` (via
+  `entities.ts` `advanceObstacles`) — never reimplement hit detection here.
 - `src/App.tsx` — orchestration only: game loop, input, phase signals,
-  `GAME_CONFIG` (view/feel/particle tunables), and HUD/overlay JSX. Collision
-  checks must go through `checkCollision` (via `entities.ts`
-  `advanceObstacles`) — never reimplement hit detection in the UI layer.
+  canvas/resize wiring, and HUD/overlay JSX. Wires `gameController`'s hooks
+  to Solid signals; owns no simulation logic itself.
 - Tunables live in the module that owns them: view/feel/particle values in
-  `GAME_CONFIG` (`src/App.tsx`), entity data in `src/entities.ts`, difficulty
-  values in `src/gameLogic.ts`. No magic numbers at use sites, ever.
-- Per-frame values live in plain mutable objects (`sim`, `view`); Solid signals
-  are only for low-frequency UI state (phase, level, displayed distance).
+  `GAME_CONFIG` (`src/config.ts`), entity data in `src/entities.ts`,
+  difficulty values in `src/gameLogic.ts`. No magic numbers at use sites,
+  ever.
+- Per-frame values live in plain mutable objects (`sim` in
+  `gameController.ts`, `view` in `App.tsx`); Solid signals are only for
+  low-frequency UI state (phase, level, displayed distance).
 
 ## Specifications
 

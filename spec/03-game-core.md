@@ -2,7 +2,7 @@
 id: SPEC-CORE
 title: Game Core (Simulation Contract)
 status: implemented
-code: [src/gameLogic.ts, src/App.tsx]
+code: [src/gameLogic.ts, src/gameController.ts, src/config.ts, src/App.tsx]
 ---
 
 # Game Core
@@ -24,7 +24,7 @@ Status: implemented — see the per-invariant markers
 
 ## Phases
 
-Status: implemented (src/App.tsx GamePhase; CORE-05 instant retry, P6)
+Status: implemented (src/config.ts GamePhase; CORE-05 instant retry, P6)
 
 `ready → running → (cleared | gameover)`; both terminal phases return to
 `running` via the start/retry button (which resets the sim). Rules:
@@ -34,7 +34,7 @@ Status: implemented (src/App.tsx GamePhase; CORE-05 instant retry, P6)
 - Input (pointer taps on screen halves, ArrowLeft/ArrowRight) moves lanes only
   during `running`; lane index clamps to `[0, laneCount-1]`.
 - A non-`running` phase still animates an idle/attract scene.
-- `CORE-05` *(implemented, P6: src/App.tsx sim.terminalLockTime, retry)*
+- `CORE-05` *(implemented, P6: src/gameController.ts sim.terminalLockTime; src/App.tsx retry)*
   **Instant retry**: on entering a terminal phase, input locks for
   `GAME_CONFIG.retryLockout` (0.4 s — absorbs trailing panic taps from the
   crash and matches the shake settling); after the lockout, any pointer tap on
@@ -45,7 +45,7 @@ Status: implemented (src/App.tsx GamePhase; CORE-05 instant retry, P6)
 
 ## Units and scrolling
 
-Status: implemented (src/App.tsx updateGame, pxPerUnit)
+Status: implemented (src/gameController.ts updateGame, pxPerUnit)
 
 - The player is fixed on screen; the world scrolls down.
 - Distance advances `speed * dt` meters per frame; distance is clamped to
@@ -114,39 +114,41 @@ export const ZONE_TABLE: readonly ZoneDef[] = [
 ```
 
 `calculateLevel(distance)` keeps its exact signature (`LevelInfo`), derived
-from `ZONE_TABLE` — call sites in `src/App.tsx` and the level banner do not
-change. Adding a fourth zone later is a table edit plus new boundary tests.
+from `ZONE_TABLE` — call sites in `src/gameController.ts`/`src/App.tsx` and
+the level banner do not change. Adding a fourth zone later is a table edit
+plus new boundary tests.
 
 **Implemented spawn cadence**: rows spawn every `spawnGapForZone(distance)`
 meters — a linear ramp between the active zone's `spawnGap.from`/`.to` across
 its start/end span (`zoneRangeAt`) — after an initial 6 m delay
-(`SPAWN_GAP.initialDelay`, `src/gameLogic.ts`; called from `src/App.tsx`
-`updateGame`). This replaces the old flat per-level formula
-(`spawnGapForLevel`, removed).
+(`SPAWN_GAP.initialDelay`, `src/gameLogic.ts`; called from
+`src/gameController.ts` `updateGame`). This replaces the old flat per-level
+formula (`spawnGapForLevel`, removed).
 
 ## Zone transitions
 
-Status: implemented (P5: src/App.tsx ZONE_PALETTES, sim.zoneFadeFrom/
-zoneFadeTime, frameColors; src/render.ts lerpHexColor, drawBanner,
-ZONE_LANDMARKS/drawZoneLandmark, drawCastleGate)
+Status: implemented (P5: src/config.ts ZONE_PALETTES; src/gameController.ts
+sim.zoneFadeFrom/zoneFadeTime; src/zoneVisuals.ts frameColors;
+src/render/helpers.ts lerpHexColor; src/render/frame.ts drawBanner;
+src/render/landmarks.ts ZONE_LANDMARKS/drawZoneLandmark/drawCastleGate)
 
 On crossing a zone boundary: the existing 0.8 s banner (retitled
-`ZONE 2 — MARKET STREET` / `SPEED UP!`, via `src/render.ts` `drawBanner`
+`ZONE 2 — MARKET STREET` / `SPEED UP!`, via `src/render/frame.ts` `drawBanner`
 looking up the zone name from `ZONE_TABLE`) and levelUp jingle fire as before;
 additionally, a 1.2 s linear crossfade (`GAME_CONFIG.zoneCrossfadeDuration`,
-`src/render.ts` `lerpHexColor`) blends the road/curb/sky colors
+`src/render/helpers.ts` `lerpHexColor`) blends the road/curb/sky colors
 (`cobbleMid`/`cobbleLight`/`duskPurple`) from the previous zone's
 `ZONE_PALETTES` entry to the new one's; and one landmark prop scrolls past,
 keyed to the same `ZONE_TABLE` boundary distances a `drawGoalLine`-style
-distance-to-screen-y computation uses (`src/render.ts` `ZONE_LANDMARKS`,
-`drawZoneLandmark`): a town gate arch at old-town's exit (50 m), a market
-banner at market-street's exit (150 m). Zone palettes live in
-`src/App.tsx` `ZONE_PALETTES`, a per-zone color block that only overrides the
+distance-to-screen-y computation uses (`src/render/landmarks.ts`
+`ZONE_LANDMARKS`, `drawZoneLandmark`): a town gate arch at old-town's exit
+(50 m), a market banner at market-street's exit (150 m). Zone palettes live in
+`src/config.ts` `ZONE_PALETTES`, a per-zone color block that only overrides the
 three road/sky keys — all other `GAME_CONFIG.colors` entries (entity colors,
 UI) stay flat across zones per `WLD-02`.
 
 The castle-gate goal (`SPEC-WORLD › WLD-05`) is drawn by the same function
-that used to be the plain checkered goal line, now `src/render.ts`
+that used to be the plain checkered goal line, now `src/render/landmarks.ts`
 `drawCastleGate`: flanking stone towers with a flat-color torch-flame accent
 (no blur, per `RND-07`'s no-gradient rule) plus the original checkered
 drawbridge-deck threshold strip. Poco's `victory` animation still plays in
@@ -155,7 +157,8 @@ front of it on clear (unchanged from `SPEC-WORLD › Protagonist`).
 ## Score
 
 Status: implemented — CORE-04 (P4: src/gameLogic.ts calculateScore,
-src/App.tsx); CORE-06 (P6: src/App.tsx bestScore, BEST_SCORE_KEY)
+src/App.tsx/src/gameController.ts); CORE-06 (P6: src/App.tsx bestScore signal,
+src/config.ts BEST_SCORE_KEY, src/gameController.ts finishRun)
 
 `CORE-04` — `score = floor(distance) + Σ collected item scores`. Distance
 remains the sole clear condition (`CORE-INV-3`); score is display and replay
@@ -166,9 +169,10 @@ value only.
 - HUD gains a coin counter next to the distance readout; result overlays show
   distance / coins / total score.
 
-`CORE-06` *(implemented, P6: src/App.tsx bestScore, finishRun)* — **Best
-score**: the highest final score persists in `localStorage` under the key
-`vertical-rush.best`; read once on mount and written on run end, both inside
-try/catch (private-mode safe, default 0); shown on both result overlays.
-Lives entirely in `src/App.tsx` (`CORE-INV-2`); it never gates progress
-(`CORE-INV-3`).
+`CORE-06` *(implemented, P6: src/App.tsx bestScore signal + mount read;
+src/gameController.ts finishRun)* — **Best score**: the highest final score
+persists in `localStorage` under the key `vertical-rush.best`
+(`src/config.ts` `BEST_SCORE_KEY`); read once on mount and written on run end,
+both inside try/catch (private-mode safe, default 0); shown on both result
+overlays. Lives across `src/App.tsx` (the signal) and `src/gameController.ts`
+(persistence); it never gates progress (`CORE-INV-3`).
