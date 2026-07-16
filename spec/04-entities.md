@@ -71,11 +71,10 @@ export type EntityCategory = "obstacle" | "item";
 
 export type CollisionEffect =
   | { kind: "crash" } // ends the run: gameover phase, crash sfx, shake, sparks
-  | { kind: "collect"; score: number; sfx: SfxId }; // removes the instance, adds score
-// Planned additive members (P11 — do NOT implement before that phase):
-//   | { kind: "shield" }
-//   | { kind: "slow"; factor: number; durationSec: number }
-//   | { kind: "magnet"; durationSec: number } // pull radius tuned during P11
+  | { kind: "collect"; score: number; sfx: SfxId } // removes the instance, adds score
+  | { kind: "shield" } // P11: absorbs exactly one crash, then breaks
+  | { kind: "slow"; factor: number; durationSec: number } // P11: scales world speed for durationSec
+  | { kind: "magnet"; durationSec: number }; // P11: pulls nearby coins for durationSec (pull radius/speed are GAME_CONFIG.magnet, a feel tunable, not entity data)
 
 export type BehaviorDef =
   | { kind: "static" }
@@ -115,14 +114,15 @@ calls, particles) stays in the shell — the registry never imports UI code
 
 ## Entity registry
 
-Status: partial — `market-crate`/`hay-cart` implemented (P2); `coin`
+Status: implemented — `market-crate`/`hay-cart` implemented (P2); `coin`
 implemented (P4); `gem` implemented (P5); movers (`stray-cat`/
 `chicken-flock`/`rolling-barrel`) implemented (P5, `src/entities.ts`
 `ENTITY_DEFS`, `moverTargetLane`, `attachDartMotion`, `positionChickenFlock`,
 `stepMover`); `town-guard`/`fountain`/`banner-arch` implemented (P10,
 `src/entities.ts` `ENTITY_DEFS`, the `laneRestriction` field,
 `shouldSpawnBannerArch`, `positionBannerArchRow`); `sweet-roll`/`hourglass`/
-`magnet` planned (P11)
+`magnet` implemented (P11, `src/entities.ts` `ENTITY_DEFS`, the
+`CollisionEffect` `shield`/`slow`/`magnet` members)
 
 `ENT-02` — **source of truth** for mechanical values. Ids pair 1:1 with
 `SPEC-WORLD` (`WLD-01`). Sizes are logical px on the 180×320 grid
@@ -140,9 +140,9 @@ implemented (P4); `gem` implemented (P5); movers (`stray-cat`/
 | `banner-arch` | obstacle | 38×24 per blocked-lane hitbox | 1 (scripted, one per non-safe lane) | static | crash | scripted (not weighted) | castle-road | **P10** |
 | `coin` | item | 12×12 | 1 | static | collect +10, sfx `coin` | trail rule below | all | **P4** |
 | `gem` | item | 12×12 | 1 | static | collect +50, sfx `coin` | 1 per zone | all | **P5** |
-| `sweet-roll` | item | 14×14 | 1 | static | shield *(planned effect)* | rare | all | P11 |
-| `hourglass` | item | 12×16 | 1 | static | slow *(planned effect)* | rare | all | P11 |
-| `magnet` | item | 14×12 | 1 | static | magnet *(planned effect)* | rare | all | P11 |
+| `sweet-roll` | item | 14×14 | 1 | static | shield: absorbs 1 hit | rare (0.08/row) | all | **P11** |
+| `hourglass` | item | 12×16 | 1 | static | slow: ×0.6 world speed, 3 s | rare (0.08/row) | all | **P11** |
+| `magnet` | item | 14×12 | 1 | static | magnet: pulls coins, 5 s | rare (0.08/row) | all | **P11** |
 
 `market-crate` at 38×24 intentionally matches the current obstacle's footprint
 (`laneWidth × 0.74`, aspect 0.62) so P2 changes look, not difficulty. The
@@ -242,6 +242,14 @@ export const SPAWN_TABLE: Record<string /* zone id, SPEC-CORE › CORE-03 */, Zo
   (`zoneRangeAt` start/end averaged), placed in that row's safe lane
   (`shouldSpawnGem`, `positionGem`) — `ENT-INV-3` holds by construction, same
   as the coin trail.
+- `ENT-02` **rare effect item placement** (P11, `src/entities.ts`
+  `rollsRareItem`/`positionRareItem`, `src/gameController.ts`
+  `spawnObstacleRow`): on any row that doesn't already get that zone's
+  guaranteed `gem` (the two never share the row's single leading-edge safe-lane
+  slot), a flat 0.08 chance (`SPAWN_TABLE[zoneId].rareItemChance`) weighted-picks
+  one of `sweet-roll`/`hourglass`/`magnet` (`SPAWN_TABLE[zoneId].items`, equal
+  weight) and places it in the row's safe lane, same idiom as `positionGem` —
+  `ENT-INV-3` holds by construction.
 - 2-lane entities (`hay-cart`) require 2 adjacent non-safe lanes; when the
   safe lane is the center lane, fall back to a 1-lane pick.
 - **Movers** (P5, `src/entities.ts` `moverTargetLane`/`attachDartMotion`/
@@ -271,7 +279,8 @@ export const SPAWN_TABLE: Record<string /* zone id, SPEC-CORE › CORE-03 */, Zo
 
 Status: implemented (P4: src/entities.ts advanceItems, src/gameLogic.ts
 checkCollision marginRate + PICKUP_MARGIN_RATE, src/App.tsx collectItems; P5:
-gem support via CollectedItem.defId)
+gem support via CollectedItem.defId; P11: effect items via
+src/gameController.ts sim.effects/applyItemEffect)
 
 - `ENT-04` Item pickup reuses `checkCollision` with the generous margin
   `PICKUP_MARGIN_RATE = 0.1` via the optional parameter from
@@ -285,13 +294,34 @@ gem support via CollectedItem.defId)
   (`GAME_CONFIG.particles.itemBurst`, gold for `coin` / dusk-teal for `gem`).
   The HUD's 🪙 counter only counts `defId === "coin"` pickups — `gem` adds to
   the score total without incrementing it. The run never stops for an item.
-- Effect items (`shield`, `slow`, `magnet`) are planned (P11). Contract: a
-  single `activeEffects` structure on the sim; effects never stack;
-  re-collect refreshes duration; values per `SPEC-WORLD › Item cast` (shield
-  absorbs exactly one hit — `shieldBreak` sfx instead of gameover; slow
-  ×0.6 for 3 s; magnet 5 s). The magnet pull radius and the HUD effect
-  indicator are tuned/designed during P11. Do not build any of this
-  before P11.
+- `CollectedItem` (`src/entities.ts`) carries the item's full `onCollision`
+  effect (not just score/sfx), so `advanceItems` reports every kind
+  (`collect`/`shield`/`slow`/`magnet`) through the one pickup path — no second
+  collision/pickup mechanism (`CORE-INV-1`).
+- Effect items (`shield`, `slow`, `magnet`) implemented (P11,
+  `src/gameController.ts`): a single `sim.effects` structure
+  (`{ shield, slowTime, slowFactor, magnetTime }`) — effects never stack;
+  re-collecting the same kind overwrites/refreshes its timer rather than
+  stacking. `shield` absorbs exactly one crash: `advanceObstacles` takes a
+  `hasShield` flag and, on a collision found while it's true, removes the
+  offending obstacle (so it can't hit again next frame) but still reports the
+  same boolean hit it always did — `gameController.ts`'s `updateGame` already
+  holds `sim.effects.shield`, so it alone decides whether that hit means
+  `shieldBreak` (clear the flag, play the sfx, keep running) or a real crash;
+  a second hit with `shield` already spent crashes normally. `slow` (factor
+  0.6, 3 s, from the `hourglass` entity's
+  `onCollision`) scales `updateGame`'s per-frame `speed` — both distance
+  advancement and scroll pixels — `CORE-INV-3` holds because `TARGET_DISTANCE`
+  itself never changes, only how long real-time it takes to reach it. `magnet`
+  (5 s, from `magnet`'s `onCollision`) is passed into `advanceItems` as a
+  `{ radius, pullSpeed }` (`GAME_CONFIG.magnet` — a feel tunable, not entity
+  data since it isn't part of `CollisionEffect`); coins within `radius` drift
+  toward the player at `pullSpeed` px/s and are picked up through the same
+  `checkCollision` path once close enough (`CORE-INV-1` — no bespoke magnet
+  collision code). An HUD effect indicator (`src/App.tsx`: 🛡️/⏳/🧲 chips,
+  pushed every frame from `sim.effects` via `GameControllerHooks.setEffect*`
+  since `sim` is a plain mutable object, not reactive) shows which effects are
+  currently active.
 
 ## Extensibility contract
 
@@ -322,9 +352,17 @@ not fallback art — P10 added three such drawers (`guard`/`fountain`/`banner`)
 alongside `town-guard`/`fountain`/`banner-arch` without touching the loop,
 collision, or dispatch.
 
+P11's `shield`/`slow`/`magnet` are the other legitimate carve-out this
+section names: new `CollisionEffect` kinds, which necessarily touch the
+shell's dispatch (`src/gameController.ts` `applyItemEffect`,
+`advanceObstacles`'s `hasShield` parameter, `advanceItems`'s magnet pull) —
+a design change, not content, exactly as this contract predicts. Adding a
+*fourth* rare item that reuses one of these three effect kinds would again be
+data-only (an `ENTITY_DEFS` row plus a `SPAWN_TABLE[zoneId].items` ref).
+
 ## Sprite binding
 
-Status: implemented (P7, src/entities.ts ENTITY_DEFS, src/sprites.ts SPRITE_SHEETS.entities; extended P10)
+Status: implemented (P7, src/entities.ts ENTITY_DEFS, src/sprites.ts SPRITE_SHEETS.entities; extended P10; extended P11 with sweet-roll/hourglass/magnet)
 
 `ENT-06` — Every `ENTITY_DEFS` row binds to the `entities` sprite sheet
 (`SPEC-RENDER › RND-08`) as `sprite: { sheet: "entities", animation: <its own

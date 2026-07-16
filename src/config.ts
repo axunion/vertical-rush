@@ -46,6 +46,8 @@ export const GAME_CONFIG = {
     idleSpeed: 0.5,
   },
   idle: { scrollRatio: 0.06, animRate: 0.8 },
+  /** P11 magnet effect (item onCollision carries its durationSec; radius/pullSpeed are feel tunables, not entity data). */
+  magnet: { radius: 50, pullSpeed: 220 },
   shake: { duration: 0.45, magnitude: 7 },
   bannerDuration: 0.8,
   /** SPEC-CORE zone transitions: road/sky crossfade duration on a zone change. */

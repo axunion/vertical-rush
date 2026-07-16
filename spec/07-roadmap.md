@@ -7,9 +7,9 @@ code: []
 
 # Implementation Roadmap
 
-Ordered phases. **P0–P10 are complete** — one-line summaries below; their full
+Ordered phases. **P0–P11 are complete** — one-line summaries below; their full
 scope, completion criteria, and verification text lives in git history.
-Scheduled work is **P11–P12**; remaining ideas live in the unscheduled backlog
+Scheduled work is **P12**; remaining ideas live in the unscheduled backlog
 at the bottom. Each phase is **independently shippable**: the game is
 complete-feeling at every phase boundary. Do not start backlog scope without
 first scheduling it into a phase.
@@ -26,7 +26,7 @@ Completion additionally requires flipping the relevant `Status:` lines in
 these specs from `planned (Pn)` to `implemented (module symbol)` in the same
 commit — that is what keeps spec/code drift structurally bounded.
 
-## Completed phases (P0–P10)
+## Completed phases (P0–P11)
 
 Status: implemented
 
@@ -84,45 +84,30 @@ One line per phase; details are in git history.
   than one continuous 156-wide visual — reuses the existing per-instance
   sprite dispatch with no new rendering machinery). Verified with sheets
   present and with `public/assets/` renamed away.
-
-## P11 — Effect items
-
-Status: planned (P11)
-
-**Scope:**
-
-- `sweet-roll` (shield: absorbs exactly one hit — `shieldBreak` sfx and the
-  run continues), `hourglass` (slow: world speed ×0.6 for 3 s), `magnet`
-  (nearby coins fly to Poco for 5 s; pull radius tuned during the phase) —
-  values per `SPEC-WORLD › Item cast`.
-- `CollisionEffect` gains the `shield`/`slow`/`magnet` members drafted in
-  `ENT-01`; a single `activeEffects` structure on the sim — effects never
-  stack, re-collect refreshes duration (`SPEC-ENTITIES › Collection
-  mechanics`).
-- `shieldGet`/`shieldBreak` voices (`AUD-02`); `hourglass`/`magnet` pickups
-  reuse the `coin` sfx unless a distinct voice proves necessary in-phase.
-- An HUD effect indicator (designed in-phase); `entities.png` bands and
-  fallback shapes for the three items.
-
-**Completion criteria:**
-
-- `ENT-INV-3` holds: the items spawn in the safe lane and skipping one is
-  never punished; effects never gate the clear condition (`CORE-INV-3` —
-  slow scales scroll speed, never `TARGET_DISTANCE`).
-- Shield converts exactly one crash into `shieldBreak` + continue; the
-  second hit ends the run.
-- Unit tests cover effect timing, the no-stack rule, and
-  refresh-on-recollect.
-- All values tuned during the phase are written back into `ENT-02` and
-  Collection mechanics.
-
-**Verification:** the triplet, plus a manual check: collect a shield, crash
-once (run continues), crash again (run ends).
-
-**Status flips:** `SPEC-WORLD › Item cast`; `ENT-01` (the planned comment
-members become real union members); the `ENT-02` item rows;
-`SPEC-ENTITIES › Collection mechanics`; the `AUD-02` `shieldGet`/
-`shieldBreak` rows.
+- **P11 — Effect items.** `sweet-roll` (shield: `advanceObstacles` takes a
+  `hasShield` flag and, on a collision while it's true, removes the obstacle
+  but still reports the same boolean hit; `updateGame` already holds
+  `sim.effects.shield` and decides shieldBreak (sfx, run continues) vs a real
+  crash from that one boolean — a second hit crashes normally), `hourglass` (slow:
+  world speed ×0.6 for 3 s, scaling `updateGame`'s distance/scroll/anim
+  speed — `CORE-INV-3` holds, `TARGET_DISTANCE` itself never changes),
+  `magnet` (5 s; nearby coins drift toward the player via `advanceItems`'s
+  `MagnetPull` param and are picked up through the ordinary `checkCollision`
+  path — `GAME_CONFIG.magnet.radius`/`pullSpeed` are the tuned feel values).
+  A single `sim.effects` structure on the sim (`src/gameController.ts`) —
+  effects never stack, re-collect refreshes duration. `CollisionEffect`
+  gained the `shield`/`slow`/`magnet` members (`ENT-01`); the three items
+  spawn via a new flat 0.08/row `rareItemChance` roll
+  (`rollsRareItem`/`positionRareItem`) skipped on any row that already gets
+  the zone's guaranteed `gem`, so the two never share the row's leading-edge
+  safe-lane slot. `shieldGet`/`shieldBreak` voices (`AUD-02`); `hourglass`/
+  `magnet` pickups reuse the `coin` sfx. An HUD effect indicator (🛡️/⏳/🧲
+  chips, `src/App.tsx`, pushed every frame from `sim.effects` since `sim`
+  isn't reactive); `entities.png` grew 80×232 → 80×280 for three new
+  single-frame bands, and three new `FallbackShape` members (`roll`/
+  `hourglass`/`magnet`, `src/render/shapes.ts`) — the magnet uses
+  `duskPurple`/`gold` specifically to stay outside the `RND-05` rust-red
+  tolerance box.
 
 ## P12 — Polish (pixel font, ambient audio, authored audio)
 
@@ -159,5 +144,6 @@ Status: planned (unscheduled)
 
 Endless mode after clear, and tightening the fallback palette's `terracotta`
 out of the `RND-05` tolerance box (the known-ambiguity note there).
-Everything else previously listed here is scheduled into P11–P12. None of
-these may be implemented ahead of being scheduled into a phase.
+Everything else previously listed here was scheduled into P11 (now complete)
+or P12. None of these may be implemented ahead of being scheduled into a
+phase.

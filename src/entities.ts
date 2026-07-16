@@ -8,7 +8,10 @@ export type EntityCategory = "obstacle" | "item";
 
 export type CollisionEffect =
   | { kind: "crash" }
-  | { kind: "collect"; score: number; sfx: SfxId };
+  | { kind: "collect"; score: number; sfx: SfxId }
+  | { kind: "shield" } // P11: absorbs exactly one crash, then breaks
+  | { kind: "slow"; factor: number; durationSec: number } // P11: scales world speed
+  | { kind: "magnet"; durationSec: number }; // P11: pulls nearby coins
 
 export type BehaviorDef =
   | { kind: "static" }
@@ -27,7 +30,10 @@ export type FallbackShape =
   | "barrel"
   | "guard"
   | "fountain"
-  | "banner";
+  | "banner"
+  | "roll"
+  | "hourglass"
+  | "magnet";
 
 export interface EntityDef {
   id: string;
@@ -166,6 +172,36 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
     fallback: "banner",
     onCollision: { kind: "crash" },
   },
+  "sweet-roll": {
+    id: "sweet-roll",
+    category: "item",
+    size: { w: 14, h: 14 },
+    lanes: 1,
+    behavior: { kind: "static" },
+    sprite: entitySprite("sweet-roll"),
+    fallback: "roll",
+    onCollision: { kind: "shield" },
+  },
+  hourglass: {
+    id: "hourglass",
+    category: "item",
+    size: { w: 12, h: 16 },
+    lanes: 1,
+    behavior: { kind: "static" },
+    sprite: entitySprite("hourglass"),
+    fallback: "hourglass",
+    onCollision: { kind: "slow", factor: 0.6, durationSec: 3 },
+  },
+  magnet: {
+    id: "magnet",
+    category: "item",
+    size: { w: 14, h: 12 },
+    lanes: 1,
+    behavior: { kind: "static" },
+    sprite: entitySprite("magnet"),
+    fallback: "magnet",
+    onCollision: { kind: "magnet", durationSec: 5 },
+  },
 };
 
 /** ENT-03: coin trail geometry, in meters measured behind the row's leading edge. Flat across zones. */
@@ -191,6 +227,9 @@ export interface ZoneSpawn {
   obstacles: WeightedRef[];
   /** Probability a row also gets a coin trail. */
   itemChance: number;
+  /** Probability a row (that isn't already getting the zone's guaranteed gem) also gets a rare effect item (ENT-02: sweet-roll/hourglass/magnet). */
+  rareItemChance: number;
+  /** Weighted pick among this zone's rare effect items (P11). */
   items: WeightedRef[];
 }
 
@@ -229,24 +268,35 @@ const CASTLE_ROAD_OBSTACLES: WeightedRef[] = [
   { defId: "town-guard", weight: 8 },
 ];
 
-const DEFAULT_ITEMS: WeightedRef[] = [{ defId: "coin", weight: 1 }];
+/** ENT-02 (P11): the three rare effect items, equally weighted, offered in every zone. */
+const RARE_ITEMS: WeightedRef[] = [
+  { defId: "sweet-roll", weight: 1 },
+  { defId: "hourglass", weight: 1 },
+  { defId: "magnet", weight: 1 },
+];
+
+/** ENT-02 (P11): flat per-row chance of a rare effect item, same across zones (mirrors itemChance's flat-across-zones idiom). */
+const RARE_ITEM_CHANCE = 0.08;
 
 /** ENT-05/CORE-03 — per-zone obstacle/item weights, keyed by ZONE_TABLE zone id. */
 export const SPAWN_TABLE: Record<string, ZoneSpawn> = {
   "old-town": {
     obstacles: STREET_OBSTACLES,
     itemChance: 0.6,
-    items: DEFAULT_ITEMS,
+    rareItemChance: RARE_ITEM_CHANCE,
+    items: RARE_ITEMS,
   },
   "market-street": {
     obstacles: MARKET_STREET_OBSTACLES,
     itemChance: 0.6,
-    items: DEFAULT_ITEMS,
+    rareItemChance: RARE_ITEM_CHANCE,
+    items: RARE_ITEMS,
   },
   "castle-road": {
     obstacles: CASTLE_ROAD_OBSTACLES,
     itemChance: 0.6,
-    items: DEFAULT_ITEMS,
+    rareItemChance: RARE_ITEM_CHANCE,
+    items: RARE_ITEMS,
   },
 };
 
@@ -528,7 +578,11 @@ function stepMover(obs: EntityInstance, dt: number): void {
  * reports whether any remaining obstacle now overlaps the player (via the
  * shared `checkCollision`, per CORE-INV-1 — no second hit-detection path).
  * `dt`/`defs` default to a no-op mover step and the real registry, so
- * existing static-only call sites are unaffected.
+ * existing static-only call sites are unaffected. When `hasShield` is true
+ * (P11), a collision removes the offending obstacle (the shield absorbs it)
+ * instead of leaving it in place for the crash reaction frame; the caller
+ * (which already holds `sim.effects.shield`) tells the two cases apart from
+ * the same boolean return.
  */
 export function advanceObstacles(
   obstacles: EntityInstance[],
@@ -537,6 +591,7 @@ export function advanceObstacles(
   player: Box,
   dt = 0,
   defs: Record<string, EntityDef> = ENTITY_DEFS,
+  hasShield = false,
 ): boolean {
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const obs = obstacles[i];
@@ -549,6 +604,9 @@ export function advanceObstacles(
       continue;
     }
     if (checkCollision(player, obs)) {
+      if (hasShield) {
+        obstacles.splice(i, 1);
+      }
       return true;
     }
   }
@@ -566,13 +624,38 @@ export function rollsCoinTrail(itemChance: number, rng: () => number): boolean {
 }
 
 /**
+ * ENT-02 (P11): whether a row also gets a rare effect item (sweet-roll/
+ * hourglass/magnet), given the zone's `rareItemChance` and the injected rng —
+ * mirrors `rollsCoinTrail`'s roll shape.
+ */
+export function rollsRareItem(
+  rareItemChance: number,
+  rng: () => number,
+): boolean {
+  return rng() < rareItemChance;
+}
+
+/**
+ * Builds a single instance of `defId` in `lane` at the row's leading edge —
+ * always the row's safe lane so pickup stays optional (ENT-INV-3). Shared by
+ * the guaranteed-per-zone `gem` (`positionGem`) and the P11 rare items.
+ */
+export function positionRareItem(
+  defId: string,
+  lane: number,
+  laneCenterX: (lane: number) => number,
+): EntityInstance {
+  return placeAtLeadingEdge(defId, lane, laneCenterX(lane));
+}
+
+/**
  * Builds a single gem instance in `lane` at the row's leading edge (ENT-02).
  */
 export function positionGem(
   lane: number,
   laneCenterX: (lane: number) => number,
 ): EntityInstance {
-  return placeAtLeadingEdge("gem", lane, laneCenterX(lane));
+  return positionRareItem("gem", lane, laneCenterX);
 }
 
 /**
@@ -616,40 +699,65 @@ export function positionCoinTrail(
 
 export interface CollectedItem {
   defId: string;
-  score: number;
-  sfx: SfxId;
+  effect: CollisionEffect;
+}
+
+/** P11: while active, nearby coins drift toward the player (magnet effect). */
+export interface MagnetPull {
+  radius: number;
+  pullSpeed: number;
+}
+
+/** Moves `item` toward `player`'s center at `magnet.pullSpeed` px/s, capped so it never overshoots (P11 magnet effect). */
+function pullTowardPlayer(
+  item: EntityInstance,
+  player: Box,
+  magnet: MagnetPull,
+  dt: number,
+): void {
+  const dx = player.x + player.width / 2 - (item.x + item.width / 2);
+  const dy = player.y + player.height / 2 - (item.y + item.height / 2);
+  const dist = Math.hypot(dx, dy);
+  if (dist === 0 || dist > magnet.radius) {
+    return;
+  }
+  const move = Math.min(dist, magnet.pullSpeed * dt);
+  item.x += (dx / dist) * move;
+  item.y += (dy / dist) * move;
 }
 
 /**
- * Scrolls item instances by `scroll`, drops ones that left the view, and
- * removes any overlapping the player under the generous pickup margin
- * (ENT-04, via the shared `checkCollision` — CORE-INV-1). Reports each
- * collected item's score/sfx so the shell can score it and play audio; the
- * run never stops for an item (ENT-INV-3).
+ * Scrolls item instances by `scroll`, pulls coins toward the player while
+ * `magnet` is active (P11), drops ones that left the view, and removes any
+ * overlapping the player under the generous pickup margin (ENT-04, via the
+ * shared `checkCollision` — CORE-INV-1). Reports each collected item's full
+ * `onCollision` effect so the shell can resolve it (score, shield, slow,
+ * magnet); the run never stops for an item (ENT-INV-3).
  */
 export function advanceItems(
   items: EntityInstance[],
   scroll: number,
   viewHeight: number,
   player: Box,
+  dt = 0,
+  magnet: MagnetPull | null = null,
 ): CollectedItem[] {
   const collected: CollectedItem[] = [];
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i];
     item.y += scroll;
+    if (magnet && item.defId === "coin") {
+      pullTowardPlayer(item, player, magnet, dt);
+    }
     if (item.y > viewHeight) {
       items.splice(i, 1);
       continue;
     }
     if (checkCollision(player, item, PICKUP_MARGIN_RATE)) {
-      const effect = ENTITY_DEFS[item.defId].onCollision;
-      if (effect.kind === "collect") {
-        collected.push({
-          defId: item.defId,
-          score: effect.score,
-          sfx: effect.sfx,
-        });
-      }
+      collected.push({
+        defId: item.defId,
+        effect: ENTITY_DEFS[item.defId].onCollision,
+      });
       items.splice(i, 1);
     }
   }

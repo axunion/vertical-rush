@@ -12,7 +12,9 @@ import {
   positionCoinTrail,
   positionGem,
   positionObstacleRow,
+  positionRareItem,
   rollsCoinTrail,
+  rollsRareItem,
   SPAWN_TABLE,
   shouldSpawnBannerArch,
   shouldSpawnGem,
@@ -91,8 +93,8 @@ describe("advanceObstacles", () => {
     const obstacles: EntityInstance[] = [
       { defId: "market-crate", lane: 0, x: 0, y: 0, width: 40, height: 40 },
     ];
-    const crashed = advanceObstacles(obstacles, 10, 320, player);
-    expect(crashed).toBe(false);
+    const hit = advanceObstacles(obstacles, 10, 320, player);
+    expect(hit).toBe(false);
     expect(obstacles[0].y).toBe(10);
   });
 
@@ -100,8 +102,8 @@ describe("advanceObstacles", () => {
     const obstacles: EntityInstance[] = [
       { defId: "market-crate", lane: 0, x: 0, y: 310, width: 40, height: 40 },
     ];
-    const crashed = advanceObstacles(obstacles, 20, 320, player);
-    expect(crashed).toBe(false);
+    const hit = advanceObstacles(obstacles, 20, 320, player);
+    expect(hit).toBe(false);
     expect(obstacles).toHaveLength(0);
   });
 
@@ -109,8 +111,49 @@ describe("advanceObstacles", () => {
     const obstacles: EntityInstance[] = [
       { defId: "market-crate", lane: 0, x: 40, y: 190, width: 40, height: 40 },
     ];
-    const crashed = advanceObstacles(obstacles, 0, 320, player);
-    expect(crashed).toBe(true);
+    const hit = advanceObstacles(obstacles, 0, 320, player);
+    expect(hit).toBe(true);
+    expect(obstacles).toHaveLength(1);
+  });
+
+  it("P11: a shield absorbs the collision, removes the obstacle, and still reports a hit", () => {
+    // The caller (gameController.ts) tells shieldBroke from crashed by
+    // checking sim.effects.shield itself before/after this call; the
+    // function just reports whether a collision occurred.
+    const obstacles: EntityInstance[] = [
+      { defId: "market-crate", lane: 0, x: 40, y: 190, width: 40, height: 40 },
+    ];
+    const hit = advanceObstacles(
+      obstacles,
+      0,
+      320,
+      player,
+      0,
+      ENTITY_DEFS,
+      true,
+    );
+    expect(hit).toBe(true);
+    expect(obstacles).toHaveLength(0);
+  });
+
+  it("P11: only absorbs the first collision found per call, leaving a second overlapping obstacle untouched", () => {
+    // The shield only ever absorbs the first collision found per call; a
+    // caller must clear sim.effects.shield after a hit before the next
+    // obstacle (or next frame) can be absorbed again.
+    const obstacles: EntityInstance[] = [
+      { defId: "market-crate", lane: 0, x: 40, y: 190, width: 40, height: 40 },
+      { defId: "market-crate", lane: 1, x: 40, y: 190, width: 40, height: 40 },
+    ];
+    const hit = advanceObstacles(
+      obstacles,
+      0,
+      320,
+      player,
+      0,
+      ENTITY_DEFS,
+      true,
+    );
+    expect(hit).toBe(true);
     expect(obstacles).toHaveLength(1);
   });
 
@@ -216,11 +259,16 @@ describe("pickWeighted", () => {
 });
 
 describe("SPAWN_TABLE", () => {
-  it("has an entry for every zone with a coin item", () => {
+  it("has an entry for every zone with a coinChance and the three rare effect items (P11)", () => {
     for (const zoneId of ["old-town", "market-street", "castle-road"]) {
       const zoneSpawn = SPAWN_TABLE[zoneId];
-      expect(zoneSpawn.items).toEqual([{ defId: "coin", weight: 1 }]);
       expect(zoneSpawn.itemChance).toBeGreaterThan(0);
+      expect(zoneSpawn.rareItemChance).toBeGreaterThan(0);
+      expect(zoneSpawn.items.map((r) => r.defId).sort()).toEqual([
+        "hourglass",
+        "magnet",
+        "sweet-roll",
+      ]);
     }
   });
 
@@ -631,6 +679,61 @@ describe("ENTITY_DEFS", () => {
     expect(ENTITY_DEFS["banner-arch"].behavior).toEqual({ kind: "static" });
     expect(ENTITY_DEFS["banner-arch"].onCollision).toEqual({ kind: "crash" });
   });
+
+  it("matches the ENT-02 source-of-truth footprint and shield effect for sweet-roll (P11)", () => {
+    expect(ENTITY_DEFS["sweet-roll"].size).toEqual({ w: 14, h: 14 });
+    expect(ENTITY_DEFS["sweet-roll"].lanes).toBe(1);
+    expect(ENTITY_DEFS["sweet-roll"].category).toBe("item");
+    expect(ENTITY_DEFS["sweet-roll"].onCollision).toEqual({ kind: "shield" });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint and slow effect for hourglass (P11)", () => {
+    expect(ENTITY_DEFS.hourglass.size).toEqual({ w: 12, h: 16 });
+    expect(ENTITY_DEFS.hourglass.lanes).toBe(1);
+    expect(ENTITY_DEFS.hourglass.category).toBe("item");
+    expect(ENTITY_DEFS.hourglass.onCollision).toEqual({
+      kind: "slow",
+      factor: 0.6,
+      durationSec: 3,
+    });
+  });
+
+  it("matches the ENT-02 source-of-truth footprint and magnet effect for magnet (P11)", () => {
+    expect(ENTITY_DEFS.magnet.size).toEqual({ w: 14, h: 12 });
+    expect(ENTITY_DEFS.magnet.lanes).toBe(1);
+    expect(ENTITY_DEFS.magnet.category).toBe("item");
+    expect(ENTITY_DEFS.magnet.onCollision).toEqual({
+      kind: "magnet",
+      durationSec: 5,
+    });
+  });
+});
+
+describe("rollsRareItem (P11)", () => {
+  it("rolls true when rng is below the given rareItemChance", () => {
+    expect(rollsRareItem(0.08, () => 0)).toBe(true);
+  });
+
+  it("rolls false when rng is at or above the given rareItemChance", () => {
+    expect(rollsRareItem(0.08, () => 0.08)).toBe(false);
+  });
+});
+
+describe("positionRareItem (P11)", () => {
+  const laneCenterX = (lane: number) => 30 + lane * 100;
+
+  it("places the named rare item in the given lane at the row's leading edge", () => {
+    const item = positionRareItem("hourglass", 1, laneCenterX);
+    const { size } = ENTITY_DEFS.hourglass;
+    expect(item).toEqual({
+      defId: "hourglass",
+      lane: 1,
+      x: laneCenterX(1) - size.w / 2,
+      y: -size.h,
+      width: size.w,
+      height: size.h,
+    });
+  });
 });
 
 describe("rollsCoinTrail", () => {
@@ -729,16 +832,62 @@ describe("advanceItems", () => {
       { defId: "coin", lane: 0, x: 45, y: 205, width: 12, height: 12 },
     ];
     const collected = advanceItems(items, 0, 320, player);
-    expect(collected).toEqual([{ defId: "coin", score: 10, sfx: "coin" }]);
+    expect(collected).toEqual([
+      { defId: "coin", effect: { kind: "collect", score: 10, sfx: "coin" } },
+    ]);
     expect(items).toHaveLength(0);
   });
 
-  it("reports the collected item's defId so callers can distinguish coin from gem", () => {
+  it("reports the collected item's full onCollision effect, distinguishing coin from gem", () => {
     const items: EntityInstance[] = [
       { defId: "gem", lane: 0, x: 45, y: 205, width: 12, height: 12 },
     ];
     const collected = advanceItems(items, 0, 320, player);
-    expect(collected).toEqual([{ defId: "gem", score: 50, sfx: "coin" }]);
+    expect(collected).toEqual([
+      { defId: "gem", effect: { kind: "collect", score: 50, sfx: "coin" } },
+    ]);
+  });
+
+  it("P11: reports a shield item's effect as-is (non-collect kinds carry no score/sfx)", () => {
+    const items: EntityInstance[] = [
+      { defId: "sweet-roll", lane: 0, x: 45, y: 205, width: 14, height: 14 },
+    ];
+    const collected = advanceItems(items, 0, 320, player);
+    expect(collected).toEqual([
+      { defId: "sweet-roll", effect: { kind: "shield" } },
+    ]);
+  });
+
+  it("P11: pulls a coin toward the player while a magnet is active, within its radius", () => {
+    // player center (60, 220); coin centered directly above it at (60, 175),
+    // dist 45 (inside a 50 radius) but far enough that a single frame's pull
+    // (10px, dt=1 * pullSpeed 10) can't also trigger pickup this same call.
+    const items: EntityInstance[] = [
+      { defId: "coin", lane: 0, x: 54, y: 169, width: 12, height: 12 },
+    ];
+    advanceItems(items, 0, 320, player, 1, { radius: 50, pullSpeed: 10 });
+    expect(items).toHaveLength(1);
+    expect(items[0].y).toBeGreaterThan(169);
+  });
+
+  it("P11: leaves a coin outside the magnet radius untouched", () => {
+    const items: EntityInstance[] = [
+      { defId: "coin", lane: 0, x: -500, y: -500, width: 12, height: 12 },
+    ];
+    advanceItems(items, 0, 320, player, 1, { radius: 50, pullSpeed: 10 });
+    expect(items[0].x).toBe(-500);
+    expect(items[0].y).toBe(-500);
+  });
+
+  it("P11: never pulls a non-coin item even while a magnet is active", () => {
+    // Within the magnet's 50px radius of the player but not overlapping it
+    // (so it can't be collected outright, isolating the pull check).
+    const items: EntityInstance[] = [
+      { defId: "gem", lane: 0, x: 70, y: 170, width: 12, height: 12 },
+    ];
+    advanceItems(items, 0, 320, player, 1, { radius: 50, pullSpeed: 10 });
+    expect(items[0].x).toBe(70);
+    expect(items[0].y).toBe(170);
   });
 });
 

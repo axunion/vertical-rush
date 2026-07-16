@@ -103,6 +103,21 @@ export const SPRITE_SHEETS: Record<string, SpriteSheetDef> = {
         fps: 1,
         loop: true,
       },
+      "sweet-roll": {
+        frames: frameBand(232, 14, 14, [0]),
+        fps: 1,
+        loop: true,
+      },
+      hourglass: {
+        frames: frameBand(248, 12, 16, [0]),
+        fps: 1,
+        loop: true,
+      },
+      magnet: {
+        frames: frameBand(264, 14, 12, [0]),
+        fps: 1,
+        loop: true,
+      },
     },
   },
 };

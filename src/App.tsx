@@ -1,5 +1,12 @@
 import { Button } from "@kobalte/core/button";
-import { createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
+import {
+  createSignal,
+  For,
+  type JSX,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import styles from "./App.module.css";
 import { createSfx } from "./audio";
 import {
@@ -9,7 +16,7 @@ import {
   ZONE_STEADY_BLEND,
 } from "./config";
 import { ENTITY_DEFS } from "./entities";
-import { createGameController } from "./gameController";
+import { createGameController, type EffectsDisplay } from "./gameController";
 import { calculateLevel, calculateScore, ZONE_TABLE } from "./gameLogic";
 import {
   blitFrame,
@@ -29,6 +36,17 @@ import {
 import { SPRITE_SHEETS, TILE_SHEETS } from "./sprites";
 import { frameColors, frameZoneBlend } from "./zoneVisuals";
 
+/** P11 HUD effect chips: one row per `EffectsDisplay` key, rendered when active. */
+const EFFECT_CHIPS: readonly {
+  key: keyof EffectsDisplay;
+  icon: string;
+  title: string;
+}[] = [
+  { key: "shield", icon: "🛡️", title: "シールド" },
+  { key: "slow", icon: "⏳", title: "スロー" },
+  { key: "magnet", icon: "🧲", title: "マグネット" },
+];
+
 export default function App() {
   const [phase, setPhase] = createSignal<GamePhase>("ready");
   const [level, setLevel] = createSignal(1);
@@ -36,6 +54,16 @@ export default function App() {
   const [coins, setCoins] = createSignal(0);
   const [collectedScore, setCollectedScore] = createSignal(0);
   const [bestScore, setBestScore] = createSignal(0);
+  // Custom `equals` (not the default reference check) so a fresh object
+  // pushed every frame by updateAmbient still only re-renders the HUD chips
+  // when a boolean actually flips.
+  const [effects, setEffects] = createSignal<EffectsDisplay>(
+    { shield: false, slow: false, magnet: false },
+    {
+      equals: (a, b) =>
+        a.shield === b.shield && a.slow === b.slow && a.magnet === b.magnet,
+    },
+  );
 
   let rootEl!: HTMLDivElement;
   let canvasEl!: HTMLCanvasElement;
@@ -69,6 +97,7 @@ export default function App() {
     getCollectedScore: collectedScore,
     getBestScore: bestScore,
     setBestScore,
+    setEffects,
   });
   const { sim } = controller;
 
@@ -258,6 +287,13 @@ export default function App() {
         <div class={styles.hud}>
           <span class={styles.distance}>{distance()}m</span>
           <span class={styles.coinCount}>🪙{coins()}</span>
+          <For each={EFFECT_CHIPS.filter((chip) => effects()[chip.key])}>
+            {(chip) => (
+              <span class={styles.effectChip} title={chip.title}>
+                {chip.icon}
+              </span>
+            )}
+          </For>
           <div class={styles.track}>
             <div
               class={styles.trackFill}

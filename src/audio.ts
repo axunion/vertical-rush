@@ -1,5 +1,11 @@
-export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
-// Planned additive members (P11): "shieldGet" | "shieldBreak"
+export type SfxId =
+  | "dash"
+  | "levelUp"
+  | "clear"
+  | "gameOver"
+  | "coin"
+  | "shieldGet"
+  | "shieldBreak";
 
 /** AUD-03: BGM tempo per zone id (ZONE_TABLE keys); key stays C major throughout. */
 const BGM_TEMPO: Record<string, number> = {
@@ -196,6 +202,17 @@ export function createSfx() {
     coin() {
       tone(1318.51, 0.05, "square", { volume: 0.05 });
       tone(1975.53, 0.05, "square", { at: 0.04, volume: 0.05 });
+    },
+    /** AUD-02 (P11): warm major chord for picking up a shield (sweet-roll). */
+    shieldGet() {
+      tone(523.25, 0.2, "triangle", { volume: 0.06 });
+      tone(659.25, 0.2, "triangle", { volume: 0.06 });
+      tone(783.99, 0.24, "triangle", { volume: 0.06 });
+    },
+    /** AUD-02 (P11): glass-pop for a shield absorbing a hit. */
+    shieldBreak() {
+      tone(900, 0.1, "sine", { to: 300, volume: 0.06 });
+      noiseBurst(0.05, 0.05);
     },
     /** AUD-03: starts the procedural chip loop at `zoneId`'s tempo; a no-op if already playing. */
     startBgm(zoneId: string) {

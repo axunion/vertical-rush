@@ -178,7 +178,7 @@ Status: implemented (src/render/entities-draw.ts drawEntity, drawPlayer)
 
 ## RND-07 — Fallback shapes
 
-Status: implemented (src/entities.ts FallbackShape, src/render/shapes.ts drawFallback) — the `FallbackShape` union has 11 members (`runner`/`crate`/`cart`/`coin`/`gem`/`cat`/`chicken`/`barrel`/`guard`/`fountain`/`banner`); `coin` landed in P4 (src/render/shapes.ts drawCoinShape), `gem`/`cat`/`chicken`/`barrel` landed in P5 (src/render/shapes.ts drawGemShape/drawCatShape/drawChickenShape/drawBarrelShape), `guard`/`fountain`/`banner` landed in P10 (src/render/shapes.ts drawGuardShape/drawFountainShape/drawBannerShape)
+Status: implemented (src/entities.ts FallbackShape, src/render/shapes.ts drawFallback) — the `FallbackShape` union has 14 members (`runner`/`crate`/`cart`/`coin`/`gem`/`cat`/`chicken`/`barrel`/`guard`/`fountain`/`banner`/`roll`/`hourglass`/`magnet`); `coin` landed in P4 (src/render/shapes.ts drawCoinShape), `gem`/`cat`/`chicken`/`barrel` landed in P5 (src/render/shapes.ts drawGemShape/drawCatShape/drawChickenShape/drawBarrelShape), `guard`/`fountain`/`banner` landed in P10 (src/render/shapes.ts drawGuardShape/drawFountainShape/drawBannerShape), `roll`/`hourglass`/`magnet` landed in P11 (src/render/shapes.ts drawSweetRollShape/drawHourglassShape/drawMagnetShape)
 
 Canonical (target: `src/entities.ts`):
 
@@ -205,20 +205,24 @@ shape is a code change and should stay rare. Mapping per entity:
 `SPEC-ENTITIES › ENT-02` (`runner` = poco, `crate` = crates/static props,
 `cart` = wide 2-lane objects, `coin`/`gem` = round/faceted items, `cat` =
 stray-cat, `chicken` = chicken-flock birds, `barrel` = rolling-barrel, `guard`
-= town-guard, `fountain` = fountain, `banner` = banner-arch). P4 added
+= town-guard, `fountain` = fountain, `banner` = banner-arch, `roll` = sweet-roll, `hourglass`
+= hourglass, `magnet` = magnet). P4 added
 `"coin"` when the `coin` item landed; P5 added `"gem"` and the three mover
 silhouettes, per `ENT-05`'s extension contract. P10 added `"guard"`/
 `"fountain"`/`"banner"` for the same reason — each obstacle's silhouette
 (a patrolling guard, a round fountain, a hanging banner) has no honest reuse
-among the existing eight. P11 may extend this union further (the three
-effect items) or reuse existing shapes — decided in that phase; the union in
-code and this block change in the same commit.
+among the existing eight. P11 added `"roll"`/`"hourglass"`/`"magnet"` for the
+three effect items — a pastry, an hourglass, and a horseshoe magnet have no
+honest reuse among the existing eleven either; the magnet body uses
+`duskPurple` with `gold` tip caps specifically to stay outside the `RND-05`
+rust-red tolerance box.
 
 ## RND-08 — Fixed asset contract (drop-in theming)
 
 Status: implemented — `poco.png` (P3), `entities.png` (P7, src/sprites.ts
 SPRITE_SHEETS.entities, src/entities.ts ENTITY_DEFS; grew from 80×144 to
-80×232 in P10 to append the `town-guard`/`fountain`/`banner-arch` bands), and
+80×232 in P10 to append the `town-guard`/`fountain`/`banner-arch` bands, then
+to 80×280 in P11 to append `sweet-roll`/`hourglass`/`magnet`), and
 `town.png` (P8, src/sprites.ts TILE_SHEETS.town, src/render/road.ts
 drawRoad/drawCurbs, src/render/landmarks.ts
 drawCastleGate/drawZoneLandmark) are all authored under
@@ -255,10 +259,11 @@ Protagonist`):
 | 3 | 96 | `crash` | 3 |
 | 4 | 128 | `victory` | 2 |
 
-### `entities.png` — obstacles + items (implemented, P7; extended P10)
+### `entities.png` — obstacles + items (implemented, P7; extended P10, P11)
 
-**80 × 232** (P10 grew the sheet's height from 144 to 232 to append three
-bands; its width, 80, was already wide enough for every new band). One
+**80 × 280** (P10 grew the sheet's height from 144 to 232 to append three
+bands; P11 grew it again from 232 to 280 to append three more; its width, 80,
+was already wide enough for every new band). One
 entity per horizontal band; frames at the entity's native
 logical size (frame w×h **equals** `EntityDef.size` — `SPEC-ENTITIES ›
 ENT-06` — so `drawImage` never scales), laid out left-to-right from x = 0;
@@ -277,6 +282,9 @@ transparent. **Source of truth** for the sheet layout:
 | `town-guard` | 144 | 16×24 | 1 | 0 | — | yes | patrolling guard (the `roller` behavior scrolls it independently; no lateral motion) |
 | `fountain` | 168 | 40×40 | 2 | 0, 40 | 4 | yes | water shimmer blink |
 | `banner-arch` | 208 | 38×24 | 1 | 0 | — | yes | festival banner segment (one per blocked lane; adjacent segments read as one arch) |
+| `sweet-roll` | 232 | 14×14 | 1 | 0 | — | yes | glowing pastry (warmWhite bun, gold swirl + sparkle) |
+| `hourglass` | 248 | 12×16 | 1 | 0 | — | yes | blue hourglass (duskTeal frame, cobbleLight glass, gold sand) |
+| `magnet` | 264 | 14×12 | 1 | 0 | — | yes | horseshoe magnet (duskPurple body, gold tip caps) |
 
 - One looping animation per entity, **named by its entity id**, driven by the
   global animation clock `drawEntity` already receives — all instances of an
@@ -292,11 +300,12 @@ transparent. **Source of truth** for the sheet layout:
   38×24 segments still read as one banner when a row blocks two lanes. The
   sheet grew in height only (144 → 232); its width (80) already fit every
   new band.
-- P11 will append `sweet-roll` 14×14, `hourglass` 12×16, `magnet` 14×12
-  below y = 232; widening and appending stay additive-safe because frames
-  are addressed by explicit rects and existing band offsets never move.
-  Exact band y-offsets and frame counts are added to this table in that
-  phase.
+- P11 appended `sweet-roll`/`hourglass`/`magnet` below y = 232 (table above),
+  growing the sheet to 232 → 280; each band's art is the same fractional-box
+  geometry as its matching `src/render/shapes.ts` fallback drawer, one frame
+  per item (no animation — matching `hay-cart`/`market-crate`/`town-guard`/
+  `banner-arch`'s single-frame precedent), confirming appending stays
+  additive-safe (explicit rects, existing band offsets never move).
 
 ### `town.png` — background tiles, gate, landmarks (implemented, P8)
 

@@ -60,6 +60,11 @@
   text-shadow: 0 0 10px rgba(255, 209, 102, 0.55);
 }
 
+.effectChip {
+  font-size: 15px;
+  filter: drop-shadow(0 0 6px rgba(255, 209, 102, 0.55));
+}
+
 .track {
   flex: 1;
   height: 6px;

@@ -32,6 +32,12 @@ export function drawFallback(
     drawFountainShape(c, x, y, w, h, colors);
   } else if (shape === "banner") {
     drawBannerShape(c, x, y, w, h, colors);
+  } else if (shape === "roll") {
+    drawSweetRollShape(c, x, y, w, h, colors);
+  } else if (shape === "hourglass") {
+    drawHourglassShape(c, x, y, w, h, colors);
+  } else if (shape === "magnet") {
+    drawMagnetShape(c, x, y, w, h, colors);
   } else {
     drawRunnerShape(c, x, y, w, h, colors, animTime);
   }
@@ -225,6 +231,83 @@ function drawBannerShape(
   strokeInset(c, x + w * 0.08, y + h * 0.2, w * 0.84, h * 0.6, colors.ink);
   c.fillStyle = colors.gold;
   c.fillRect(x + w * 0.4, y + h * 0.32, w * 0.2, h * 0.2);
+}
+
+/** Glowing pastry (sweet-roll, P11): a warm-white bun with a gold swirl and a sparkle glint. */
+function drawSweetRollShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.warmWhite;
+  c.fillRect(x + w * 0.1, y + h * 0.2, w * 0.8, h * 0.65);
+  strokeInset(c, x + w * 0.1, y + h * 0.2, w * 0.8, h * 0.65, colors.ink);
+  c.fillStyle = colors.gold;
+  c.fillRect(x + w * 0.2, y + h * 0.35, w * 0.6, h * 0.12);
+  c.fillRect(x + w * 0.3, y + h * 0.55, w * 0.4, h * 0.12);
+  c.fillRect(x + w * 0.7, y, w * 0.25, h * 0.25);
+}
+
+/** Blue hourglass (P11): a duskTeal frame around a two-triangle glass with a gold sand pile. */
+function drawHourglassShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  c.fillStyle = colors.duskTeal;
+  c.fillRect(x, y, w, h * 0.12);
+  c.fillRect(x, y + h * 0.88, w, h * 0.12);
+  strokeInset(c, x, y, w, h * 0.12, colors.ink);
+  strokeInset(c, x, y + h * 0.88, w, h * 0.12, colors.ink);
+  c.fillStyle = colors.cobbleLight;
+  c.beginPath();
+  c.moveTo(x + w * 0.15, y + h * 0.12);
+  c.lineTo(x + w * 0.85, y + h * 0.12);
+  c.lineTo(x + w * 0.5, y + h * 0.5);
+  c.closePath();
+  c.moveTo(x + w * 0.5, y + h * 0.5);
+  c.lineTo(x + w * 0.85, y + h * 0.88);
+  c.lineTo(x + w * 0.15, y + h * 0.88);
+  c.closePath();
+  c.fill();
+  c.strokeStyle = colors.ink;
+  c.lineWidth = 1;
+  c.stroke();
+  c.fillStyle = colors.gold;
+  c.beginPath();
+  c.moveTo(x + w * 0.35, y + h * 0.7);
+  c.lineTo(x + w * 0.65, y + h * 0.7);
+  c.lineTo(x + w * 0.5, y + h * 0.88);
+  c.closePath();
+  c.fill();
+}
+
+/** Horseshoe magnet (P11): duskPurple U-body with gold tip caps (avoids the rust-red key-color tolerance box, RND-05). */
+function drawMagnetShape(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: RenderColors,
+): void {
+  const legW = w * 0.28;
+  c.fillStyle = colors.duskPurple;
+  c.fillRect(x, y, legW, h * 0.7);
+  c.fillRect(x + w - legW, y, legW, h * 0.7);
+  c.fillRect(x, y + h * 0.7, w, h * 0.3);
+  strokeInset(c, x, y, legW, h * 0.7, colors.ink);
+  strokeInset(c, x + w - legW, y, legW, h * 0.7, colors.ink);
+  strokeInset(c, x, y + h * 0.7, w, h * 0.3, colors.ink);
+  c.fillStyle = colors.gold;
+  c.fillRect(x, y, legW, h * 0.22);
+  c.fillRect(x + w - legW, y, legW, h * 0.22);
 }
 
 function drawRunnerShape(

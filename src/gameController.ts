@@ -8,11 +8,14 @@ import {
   ENTITY_DEFS,
   type EntityInstance,
   PLAYER_SIZE,
+  pickWeighted,
   positionBannerArchRow,
   positionCoinTrail,
   positionGem,
   positionObstacleRow,
+  positionRareItem,
   rollsCoinTrail,
+  rollsRareItem,
   SPAWN_TABLE,
   shouldSpawnBannerArch,
   shouldSpawnGem,
@@ -56,6 +59,15 @@ export interface GameControllerHooks {
   getCollectedScore: () => number;
   getBestScore: () => number;
   setBestScore: (score: number) => void;
+  /** P11: pushed every frame so the HUD effect indicator reflects sim.effects (a plain mutable object, not a signal). */
+  setEffects: (effects: EffectsDisplay) => void;
+}
+
+/** P11: the HUD-relevant subset of sim.effects (booleans only — slowFactor/durationSec aren't display state). */
+export interface EffectsDisplay {
+  shield: boolean;
+  slow: boolean;
+  magnet: boolean;
 }
 
 // Static across the whole session; built once instead of per-frame.
@@ -110,6 +122,13 @@ export function createGameController(
     playerAnimStateTime: 0,
     playerFacing: 1 as 1 | -1,
     switchHoldTime: 0,
+    /** P11: single activeEffects structure — effects never stack, re-collect refreshes duration. */
+    effects: {
+      shield: false,
+      slowTime: 0,
+      slowFactor: 1,
+      magnetTime: 0,
+    },
   };
 
   const laneCenterX = (lane: number) =>
@@ -149,6 +168,10 @@ export function createGameController(
     sim.playerAnimStateTime = 0;
     sim.playerFacing = 1;
     sim.switchHoldTime = 0;
+    sim.effects.shield = false;
+    sim.effects.slowTime = 0;
+    sim.effects.slowFactor = 1;
+    sim.effects.magnetTime = 0;
   };
 
   const moveLane = (dir: -1 | 1) => {
@@ -215,14 +238,43 @@ export function createGameController(
     ) {
       sim.gemZonesSeen.add(zone.id);
       sim.items.push(positionGem(sim.safeLane, laneCenterX));
+    } else if (rollsRareItem(zoneSpawn.rareItemChance, Math.random)) {
+      // P11: skip the roll on a gem row so the two guaranteed/rare item
+      // slots never stack in the same safe-lane leading-edge spot.
+      const defId = pickWeighted(zoneSpawn.items, Math.random);
+      sim.items.push(positionRareItem(defId, sim.safeLane, laneCenterX));
     }
+  };
+
+  /** P11: refreshes (never stacks) the effect matching `item`'s onCollision kind; returns the score to add (0 for non-collect kinds). */
+  const applyItemEffect = (item: CollectedItem): number => {
+    const effect = item.effect;
+    if (effect.kind === "collect") {
+      sfx[effect.sfx]();
+      return effect.score;
+    }
+    if (effect.kind === "shield") {
+      sim.effects.shield = true;
+      sfx.shieldGet();
+    } else if (effect.kind === "slow") {
+      // slowFactor is only ever read while slowTime > 0 (updateGame's
+      // speedMultiplier), so it going stale once the timer expires is
+      // harmless — the guard, not this field, is what "inactive" means.
+      sim.effects.slowFactor = effect.factor;
+      sim.effects.slowTime = effect.durationSec;
+      sfx.coin();
+    } else if (effect.kind === "magnet") {
+      sim.effects.magnetTime = effect.durationSec;
+      sfx.coin();
+    }
+    return 0;
   };
 
   const collectItems = (items: CollectedItem[], at: Box) => {
     let coinsCollected = 0;
     let scoreCollected = 0;
     for (const item of items) {
-      sfx[item.sfx]();
+      scoreCollected += applyItemEffect(item);
       emitSparks(
         sim.itemBurst,
         at,
@@ -234,7 +286,6 @@ export function createGameController(
       if (item.defId === ENTITY_DEFS.coin.id) {
         coinsCollected++;
       }
-      scoreCollected += item.score;
     }
     hooks.setCoins((n) => n + coinsCollected);
     hooks.setCollectedScore((s) => s + scoreCollected);
@@ -257,13 +308,17 @@ export function createGameController(
 
   const updateGame = (dt: number) => {
     const info = calculateLevel(sim.distance);
+    // P11 slow effect: scales world speed (CORE-INV-3 — never TARGET_DISTANCE).
+    const speedMultiplier =
+      sim.effects.slowTime > 0 ? sim.effects.slowFactor : 1;
+    const speed = info.speed * speedMultiplier;
     sim.distance = Math.min(
-      sim.distance + info.speed * dt,
+      sim.distance + speed * dt,
       GAME_CONFIG.targetDistance,
     );
-    const scroll = info.speed * pxPerUnit() * dt;
+    const scroll = speed * pxPerUnit() * dt;
     sim.bgOffset += scroll;
-    sim.animTime += dt * animSpeedFactor(info.level);
+    sim.animTime += dt * animSpeedFactor(info.level) * speedMultiplier;
 
     if (info.level !== sim.prevLevel) {
       sim.zoneFadeFrom =
@@ -302,12 +357,34 @@ export function createGameController(
     }
 
     const player = playerBox();
-    if (advanceObstacles(sim.obstacles, scroll, view.h, player, dt)) {
-      crash(player);
-      return;
+    const hitObstacle = advanceObstacles(
+      sim.obstacles,
+      scroll,
+      view.h,
+      player,
+      dt,
+      ENTITY_DEFS,
+      sim.effects.shield,
+    );
+    if (hitObstacle) {
+      if (sim.effects.shield) {
+        sim.effects.shield = false;
+        sfx.shieldBreak();
+      } else {
+        crash(player);
+        return;
+      }
     }
 
-    const collected = advanceItems(sim.items, scroll, view.h, player);
+    const magnet = sim.effects.magnetTime > 0 ? GAME_CONFIG.magnet : null;
+    const collected = advanceItems(
+      sim.items,
+      scroll,
+      view.h,
+      player,
+      dt,
+      magnet,
+    );
     if (collected.length > 0) {
       collectItems(collected, player);
     }
@@ -341,6 +418,13 @@ export function createGameController(
     sim.bannerTime = Math.max(0, sim.bannerTime - dt);
     sim.zoneFadeTime = Math.max(0, sim.zoneFadeTime - dt);
     sim.terminalLockTime = Math.max(0, sim.terminalLockTime - dt);
+    sim.effects.slowTime = Math.max(0, sim.effects.slowTime - dt);
+    sim.effects.magnetTime = Math.max(0, sim.effects.magnetTime - dt);
+    hooks.setEffects({
+      shield: sim.effects.shield,
+      slow: sim.effects.slowTime > 0,
+      magnet: sim.effects.magnetTime > 0,
+    });
     const bannerShowing = sim.bannerTime > 0;
     if (bannerShowing !== sim.bgmDucked) {
       sim.bgmDucked = bannerShowing;

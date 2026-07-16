@@ -1,7 +1,7 @@
 ---
 id: SPEC-WORLD
 title: World, Cast & Art Style
-status: partial
+status: implemented
 code: [src/entities.ts, src/sprites.ts, src/render/]
 ---
 
@@ -13,8 +13,8 @@ same entity ids.
 
 ## World concept: "Poco's Special Delivery"
 
-Status: partial — theme, Poco, and the P0–P10 cast implemented; the effect
-items planned (P11)
+Status: implemented — theme, Poco, and the full P0–P11 cast, including the
+P11 effect items
 
 **Premise.** Poco is a baker's apprentice in the fantasy town of **Karamell**.
 The queen's birthday cake is finished — but the castle gate closes at sundown,
@@ -87,8 +87,8 @@ the other lacks (a `planned` stub row is enough).
 
 ## Item cast
 
-Status: partial — `coin` implemented (P4); `gem` implemented (P5);
-`sweet-roll`/`hourglass`/`magnet` planned (P11)
+Status: implemented — `coin` implemented (P4); `gem` implemented (P5);
+`sweet-roll`/`hourglass`/`magnet` implemented (P11)
 
 Same pairing rule as obstacles (`WLD-01`). Effects and spawn rules are
 normative in `SPEC-ENTITIES › ENT-03`.
@@ -97,9 +97,9 @@ normative in `SPEC-ENTITIES › ENT-03`.
 |---|---|---|---|
 | `coin` | copper coin, 4-frame spin | +10 score | **P4** |
 | `gem` | blue gem | +50 score, one guaranteed per zone (safe lane, `ENT-INV-3`) | **P5** |
-| `sweet-roll` | glowing pastry | shield: absorbs one hit | P11 |
-| `hourglass` | blue hourglass | slow-time: world speed ×0.6 for 3 s | P11 |
-| `magnet` | horseshoe magnet | nearby coins fly to Poco for 5 s | P11 |
+| `sweet-roll` | glowing pastry | shield: absorbs one hit | **P11** |
+| `hourglass` | blue hourglass | slow-time: world speed ×0.6 for 3 s | **P11** |
+| `magnet` | horseshoe magnet (duskPurple body, gold tips — avoids the `RND-05` rust-red tolerance box) | nearby coins fly to Poco for 5 s | **P11** |
 
 ## Base palette
 

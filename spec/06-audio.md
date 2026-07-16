@@ -24,14 +24,20 @@ component cleanup (`dispose`).
 
 ## AUD-02 — SFX catalog
 
-Status: implemented — 5 voices (src/audio.ts createSfx), including P5's clear
-bell and gameOver noise burst; rows marked planned extend the catalog
+Status: implemented — 7 voices (src/audio.ts createSfx), including P5's clear
+bell and gameOver noise burst, and P11's shieldGet/shieldBreak
 
 The catalog is keyed by `SfxId`. Canonical (src/audio.ts):
 
 ```ts
-export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
-// Planned additive members (P11): "shieldGet" | "shieldBreak"
+export type SfxId =
+  | "dash"
+  | "levelUp"
+  | "clear"
+  | "gameOver"
+  | "coin"
+  | "shieldGet"
+  | "shieldBreak";
 ```
 
 | SfxId | game event | recipe | status |
@@ -41,7 +47,8 @@ export type SfxId = "dash" | "levelUp" | "clear" | "gameOver" | "coin";
 | `clear` | reaching the castle gate | current arpeggio + a low bell (sine 523 Hz, ~1.2 s decay) | implemented (P5) |
 | `gameOver` | crash | current sawtooth down-sweep + a white-noise burst (~0.2 s buffer noise, exponential decay) for the pratfall | implemented (P5) |
 | `coin` | item collect | two-note ping E6→B6, square wave, ~0.09 s | implemented (P4) |
-| `shieldGet` / `shieldBreak` | effect items | warm major chord / glass pop | planned (P11) |
+| `shieldGet` | shield pickup (sweet-roll) | warm major chord (C5-E5-G5 triangle) | implemented (P11) |
+| `shieldBreak` | shield absorbs a hit | glass-pop (sine 900→300 Hz + a short noise tick) | implemented (P11) |
 
 `SPEC-ENTITIES` `CollisionEffect.collect.sfx` references these ids — adding an
 item with a new sound means adding a voice here first.
