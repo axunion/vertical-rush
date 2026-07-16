@@ -123,6 +123,7 @@ export default function App() {
     setCollectedScore(0);
     setPhase("running");
     sfx.startBgm(ZONE_TABLE[0].id);
+    sfx.startAmbient(ZONE_TABLE[0].id);
   };
 
   /** CORE-05: restarts unless still within the post-terminal-phase lockout window; always a no-op while running. */

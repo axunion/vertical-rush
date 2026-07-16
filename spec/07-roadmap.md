@@ -7,9 +7,9 @@ code: []
 
 # Implementation Roadmap
 
-Ordered phases. **P0–P11 are complete** — one-line summaries below; their full
-scope, completion criteria, and verification text lives in git history.
-Scheduled work is **P12**; remaining ideas live in the unscheduled backlog
+Ordered phases. **P0–P12 are complete** — one-line summaries below; their full
+scope, completion criteria, and verification text lives in git history. No
+phase is currently scheduled; remaining ideas live in the unscheduled backlog
 at the bottom. Each phase is **independently shippable**: the game is
 complete-feeling at every phase boundary. Do not start backlog scope without
 first scheduling it into a phase.
@@ -26,7 +26,7 @@ Completion additionally requires flipping the relevant `Status:` lines in
 these specs from `planned (Pn)` to `implemented (module symbol)` in the same
 commit — that is what keeps spec/code drift structurally bounded.
 
-## Completed phases (P0–P11)
+## Completed phases (P0–P12)
 
 Status: implemented
 
@@ -108,35 +108,22 @@ One line per phase; details are in git history.
   `hourglass`/`magnet`, `src/render/shapes.ts`) — the magnet uses
   `duskPurple`/`gold` specifically to stay outside the `RND-05` rust-red
   tolerance box.
-
-## P12 — Polish (pixel font, ambient audio, authored audio)
-
-Status: planned (P12)
-
-**Scope:**
-
-- An embedded pixel font for HUD/overlay text. UI display text is Japanese,
-  so glyph coverage (kana/kanji vs digits/Latin only) is decided in-phase;
-  whatever the font does not cover keeps the current sans-serif stack
-  (`SPEC-WORLD › Art style rules`).
-- `AUD-04` ambient layers — keeps its own escape clause: skip (and close the
-  item with a recorded rationale) if it muddies phone speakers.
-- Authored audio files: evaluated after `AUD-04`; adopt ≤150 KB OGG+M4A only
-  if the procedural BGM still reads flat, otherwise record the decision in
-  `SPEC-AUDIO` and close the item.
-
-**Completion criteria:**
-
-- The chosen font renders all HUD/overlay strings legibly at display scale,
-  and the change leaves the `RND-05` verify scan row undisturbed.
-- `AUD-04` and the authored-audio question are each either implemented or
-  explicitly closed with a rationale in `SPEC-AUDIO`.
-
-**Verification:** the triplet, plus a manual audio review on a phone
-speaker.
-
-**Status flips:** `AUD-04`; the `SPEC-AUDIO` intro's authored-audio note;
-the `SPEC-WORLD › Art style rules` typography bullet.
+- **P12 — Polish (pixel font, ambient audio, authored audio).** An embedded
+  pixel font, **DotGothic16** (SIL OFL), self-hosted as a hand-picked
+  6.8 KB glyph subset (`src/assets/fonts/`, `src/App.module.css` `@font-face`
+  `unicode-range`) covering exactly this codebase's HUD/overlay/canvas-banner
+  strings — full Latin + digits plus the specific kana/kanji they use;
+  anything outside the subset falls back to the sans-serif stack per the
+  `font-family` list (`SPEC-WORLD › Art style rules`). `AUD-04` ambient
+  layers landed (`src/audio.ts` `startAmbient`/`setAmbientZone`/
+  `stopAmbient`): bird blips (`old-town`), a bandpass crowd-murmur loop
+  (`market-street`), and a lowpass wind bed plus banner-flap transient
+  (`castle-road`), zone-keyed like `AUD-03`'s tempo table and wired at the
+  same call sites (`start()`/zone-change edge/crash-clear). Authored audio
+  files were evaluated after `AUD-04` landed and **closed as skipped**
+  (`SPEC-AUDIO` intro) — the ambient layers gave the mix enough variety that
+  the flatness premise didn't hold, and binary audio assets would break the
+  zero-asset-bytes property the procedural direction was chosen for.
 
 ## Backlog (unscheduled)
 
@@ -144,6 +131,6 @@ Status: planned (unscheduled)
 
 Endless mode after clear, and tightening the fallback palette's `terracotta`
 out of the `RND-05` tolerance box (the known-ambiguity note there).
-Everything else previously listed here was scheduled into P11 (now complete)
-or P12. None of these may be implemented ahead of being scheduled into a
-phase.
+Everything else previously listed here was scheduled into P11 or P12 (both
+now complete). None of these may be implemented ahead of being scheduled into
+a phase.

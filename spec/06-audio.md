@@ -1,7 +1,7 @@
 ---
 id: SPEC-AUDIO
 title: Audio (SFX Catalog & Music Direction)
-status: partial
+status: implemented
 code: [src/audio.ts, src/gameController.ts, src/App.tsx]
 ---
 
@@ -9,9 +9,16 @@ code: [src/audio.ts, src/gameController.ts, src/App.tsx]
 
 Direction: **100% procedural Web Audio** — zero asset bytes, no decode
 latency, no file-format quirks. The existing synth voices are restructured
-into a chiptune flavor that fits the fantasy-town world. Authored audio files
-(≤150 KB total, OGG+M4A) are a P12 escape hatch, evaluated after `AUD-04`
-lands (`SPEC-ROADMAP › P12`), only if the procedural BGM proves flat.
+into a chiptune flavor that fits the fantasy-town world.
+
+Authored audio files (≤150 KB total, OGG+M4A) were the P12 escape hatch,
+evaluated after `AUD-04` landed. **Closed as skipped**: with `AUD-04`'s three
+zone ambient layers stacked under the existing BGM and 7-voice SFX catalog,
+the mix already has enough variety that the procedural BGM's "flatness"
+premise for reaching for authored audio doesn't hold; adding binary audio
+assets would also break the zero-asset-bytes property this direction was
+chosen for (`RND-INV-1`'s zero-PNG-playability spirit, applied to audio). No
+OGG/M4A files were added.
 
 ## AUD-01 — Unlock rule
 
@@ -84,10 +91,20 @@ comes from tempo, key stays fixed:
 
 ## AUD-04 — Ambient flavor
 
-Status: planned (P12, optional — may be closed as skipped per the escape
-clause below)
+Status: implemented (P12: src/audio.ts createSfx's startAmbient/
+setAmbientZone/stopAmbient)
 
-Clearly optional polish, all procedural: sparse two-note sine bird blips every
-4–9 s in `old-town`; low band-passed noise "crowd murmur" in `market-street`;
-wind + banner-flap in `castle-road`. Skip entirely if it muddies the mix on
-phone speakers.
+All procedural, layered under the BGM at low gain. Zone-keyed like `AUD-03`'s
+tempo table, dispatched by `beginZoneAmbient`:
+
+| zone | layer | recipe |
+|---|---|---|
+| `old-town` | bird blips | two-note sine chirp (1800→2400 Hz), rescheduled every 4–9 s (`scheduleBirdBlip`) |
+| `market-street` | crowd murmur | a looping 2 s noise buffer through a bandpass filter (~1000 Hz, Q 1.2), gain ~0.018 (`startAmbientLoop`) |
+| `castle-road` | wind + banner-flap | a looping lowpass-filtered noise bed (~500 Hz), gain ~0.02, plus a bandpass noise transient (~700 Hz) rescheduled every 3–6 s (`scheduleBannerFlap`) |
+
+Continuous loops fade in/out over `AMBIENT_FADE_SEC` (0.5 s) on zone switch or
+`stopAmbient()` rather than cutting hard. Wiring mirrors `AUD-03`:
+`sfx.startAmbient(zoneId)` on `start()` (`src/App.tsx`), `sfx.setAmbientZone`
+on the same zone-change edge that calls `setBgmZone` (`src/gameController.ts`
+`updateGame`), `sfx.stopAmbient()` alongside `stopBgm()` on crash/clear.

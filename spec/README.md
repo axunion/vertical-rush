@@ -8,12 +8,13 @@ code: []
 # vertical-rush Specifications
 
 This directory is the **design source of truth** for vertical-rush. It documents
-both the game as it exists today (P0–P8: the pixel-art fantasy town runner,
+the game as it exists today (P0–P8: the pixel-art fantasy town runner,
 the short-run casual retune, and the drop-in image theming contract; P9: the
 `src/render/` and `src/config.ts`/`src/zoneVisuals.ts`/`src/gameController.ts`
 codebase restructure; P10: the remaining obstacle cast, proving `ENT-05`'s
-data-only extensibility claim; P11: the effect-item cast — shield/slow/magnet)
-and the planned work: the P12 polish phase.
+data-only extensibility claim; P11: the effect-item cast — shield/slow/magnet;
+P12: the pixel font and ambient audio polish). No phase is currently planned;
+new scope must be scheduled into a phase before implementation.
 Specs are written primarily for AI implementers: every
 section states whether it describes reality or intent, values are given as
 copyable tables and type definitions, and environment gotchas are restated
@@ -29,7 +30,7 @@ where they constrain a design.
 | [04-entities.md](04-entities.md) | `SPEC-ENTITIES` | Entity registry, spawn tables, item/collection system, target module layout |
 | [05-rendering.md](05-rendering.md) | `SPEC-RENDER` | Pixel-art pipeline, sprite-sheet manifests, fallback contract, assets |
 | [06-audio.md](06-audio.md) | `SPEC-AUDIO` | SFX catalog, chiptune BGM direction, audio unlock rule |
-| [07-roadmap.md](07-roadmap.md) | `SPEC-ROADMAP` | Completed phases P0–P11 (summaries) and the planned P12 phase with completion criteria and verification |
+| [07-roadmap.md](07-roadmap.md) | `SPEC-ROADMAP` | Completed phases P0–P12 (summaries) and the unscheduled backlog |
 
 Recommended reading order for an implementer starting a roadmap phase:
 `07-roadmap.md` (find your phase) → the specs its scope column references →

@@ -1,3 +1,21 @@
+@font-face {
+  font-family: "DotGothic16";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/DotGothic16-subset.woff2") format("woff2");
+  /* Subset covers exactly this file's HUD/overlay strings + full Latin/digits;
+     characters outside it fall back to the sans-serif stack below (WLD-03). */
+  unicode-range:
+    U+20-21, U+25, U+2e-39, U+41-5a, U+61-7a, U+2014, U+2026, U+3046, U+304a,
+    U+3057-3058, U+305b-305c, U+3066-3067, U+306e, U+3082, U+308b, U+3092,
+    U+3094, U+3099-309a, U+30a2, U+30a4, U+30af-30b0, U+30b3-30b4,
+    U+30b7-30ba, U+30bf-30c0, U+30c3, U+30c8-30c9, U+30cd, U+30d5-30da,
+    U+30de, U+30e5, U+30e9-30ed, U+30f3, U+30fc, U+4e00, U+4e8b, U+5148,
+    U+52d5, U+53f3, U+5730, U+5b8c, U+5de6, U+5ea6, U+6307, U+679a, U+70b9,
+    U+753b, U+76ee, U+79fb, U+898b, U+8d70, U+9762, U+ff01;
+}
+
 .root {
   position: relative;
   display: flex;
@@ -13,7 +31,7 @@
     #04050f 100%
   );
   color: #e8f0ff;
-  font-family: "Avenir Next", Futura, "Trebuchet MS", sans-serif;
+  font-family: "DotGothic16", "Avenir Next", Futura, "Trebuchet MS", sans-serif;
   touch-action: none;
 }
 
@@ -46,7 +64,7 @@
 .distance {
   min-width: 3.4em;
   color: #eaf8ff;
-  font-family: Menlo, "Roboto Mono", "Courier New", monospace;
+  font-family: "DotGothic16", Menlo, "Roboto Mono", "Courier New", monospace;
   font-size: 18px;
   font-weight: 700;
   text-shadow: 0 0 10px rgba(45, 226, 255, 0.55);
@@ -54,7 +72,7 @@
 
 .coinCount {
   color: #ffd166;
-  font-family: Menlo, "Roboto Mono", "Courier New", monospace;
+  font-family: "DotGothic16", Menlo, "Roboto Mono", "Courier New", monospace;
   font-size: 14px;
   font-weight: 700;
   text-shadow: 0 0 10px rgba(255, 209, 102, 0.55);

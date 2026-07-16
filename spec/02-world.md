@@ -131,7 +131,7 @@ Particle colors move to `gold` / `warm-white` / `terracotta` (dust) and
 ## Art style rules
 
 Status: implemented — `WLD-03`/`WLD-04` (P2), `WLD-05` (P5, src/render/landmarks.ts
-drawCastleGate)
+drawCastleGate), typography (P12, src/App.module.css)
 
 - `WLD-03` Pixel art on a 16 px background tile grid at the 180×320 logical
   resolution (`SPEC-RENDER › RND-01`); sprites use the sizes in
@@ -144,9 +144,14 @@ drawCastleGate)
   (flanking stone towers, a flat-color torch-flame accent, the checkered
   drawbridge-deck threshold) drawn by `src/render/landmarks.ts` `drawCastleGate`. Poco's
   `victory` animation plays in front of it on clear.
-- Typography: HUD/overlay text may keep the current sans-serif stack for now;
-  an embedded pixel font is scheduled (`SPEC-ROADMAP › P12`). UI display text
-  remains Japanese; spec and code text are English.
+- Typography: HUD/overlay text uses an embedded pixel font, **DotGothic16**
+  (SIL OFL, `src/assets/fonts/`), self-hosted as a hand-picked glyph subset
+  (`src/App.module.css` `@font-face` `unicode-range`) covering exactly this
+  codebase's HUD/overlay strings — full Latin + digits, plus the specific
+  kana/kanji those strings use. Any character outside the subset (a future
+  string using a kanji not yet covered) falls back to the sans-serif stack
+  per the `font-family` list, per `RND-INV-1`-style graceful degradation. UI
+  display text remains Japanese; spec and code text are English.
 
 ## Theme swap
 

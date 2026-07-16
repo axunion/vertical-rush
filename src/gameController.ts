@@ -297,6 +297,7 @@ export function createGameController(
     finishRun();
     sfx.gameOver();
     sfx.stopBgm();
+    sfx.stopAmbient();
     sim.shakeTime = GAME_CONFIG.shake.duration;
     emitSparks(
       sim.sparks,
@@ -332,6 +333,7 @@ export function createGameController(
       const toZone = ZONE_TABLE.find((z) => z.level === info.level);
       if (toZone) {
         sfx.setBgmZone(toZone.id);
+        sfx.setAmbientZone(toZone.id);
       }
     }
 
@@ -353,6 +355,7 @@ export function createGameController(
       finishRun();
       sfx.clear();
       sfx.stopBgm();
+      sfx.stopAmbient();
       return;
     }
 

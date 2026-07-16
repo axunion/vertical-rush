@@ -54,7 +54,7 @@ export const GAME_CONFIG = {
   zoneCrossfadeDuration: 1.2,
   /** CORE-05: input lockout after entering a terminal phase, absorbing trailing panic taps from the crash. */
   retryLockout: 0.4,
-  font: '"Avenir Next", Futura, "Trebuchet MS", sans-serif',
+  font: '"DotGothic16", "Avenir Next", Futura, "Trebuchet MS", sans-serif',
   colors: {
     ink: "#33272E",
     duskPurple: "#5B4A68",

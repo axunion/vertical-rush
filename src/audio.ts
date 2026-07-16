@@ -20,6 +20,15 @@ const BGM_SCHEDULE_AHEAD_SEC = 0.1;
 const BGM_STEPS_PER_BAR = 4;
 const C4 = 261.63;
 
+/** AUD-04: per-zone ambient layer, all procedural. Fade time on zone switch/stop. */
+const AMBIENT_FADE_SEC = 0.5;
+const AMBIENT_LOOP_BUFFER_SEC = 2;
+/** Bird blips fire every 4-9s (spec); banner flaps every 3-6s (unspecified by spec, tuned by ear). */
+const BIRD_BLIP_DELAY_MIN_MS = 4000;
+const BIRD_BLIP_DELAY_RANGE_MS = 5000;
+const BANNER_FLAP_DELAY_MIN_MS = 3000;
+const BANNER_FLAP_DELAY_RANGE_MS = 3000;
+
 /** Semitone offsets from C4 for a pleasant 8-bar C-major lead line (4 beats/bar); `null` is a rest. */
 const BGM_LEAD: readonly (number | null)[] = [
   0,
@@ -71,6 +80,10 @@ export function createSfx() {
   let bgmNextStepTime = 0;
   let bgmStep = 0;
   let bgmBpm = BGM_TEMPO["old-town"];
+  let ambientZone: string | null = null;
+  let ambientTimer: number | null = null;
+  let ambientLoopSource: AudioBufferSourceNode | null = null;
+  let ambientLoopGain: GainNode | null = null;
 
   const tone = (
     freq: number,
@@ -170,6 +183,141 @@ export function createSfx() {
     }
   };
 
+  /** A short filtered noise transient — banner flap uses this in place of the plain `noiseBurst`. */
+  const filteredNoiseBurst = (
+    duration: number,
+    volume: number,
+    filterType: BiquadFilterType,
+    freq: number,
+  ) => {
+    if (!audio) {
+      return;
+    }
+    const frameCount = Math.floor(audio.sampleRate * duration);
+    const buffer = audio.createBuffer(1, frameCount, audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    const filter = audio.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.value = freq;
+    const gain = audio.createGain();
+    const t0 = audio.currentTime;
+    gain.gain.setValueAtTime(volume, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    source.connect(filter).connect(gain).connect(audio.destination);
+    source.start(t0);
+  };
+
+  /** A continuous looping filtered-noise bed (market-street murmur, castle-road wind); fades in over `AMBIENT_FADE_SEC`. */
+  const startAmbientLoop = (
+    filterType: BiquadFilterType,
+    freq: number,
+    q: number,
+    peakVolume: number,
+  ) => {
+    if (!audio) {
+      return;
+    }
+    const frameCount = Math.floor(audio.sampleRate * AMBIENT_LOOP_BUFFER_SEC);
+    const buffer = audio.createBuffer(1, frameCount, audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const filter = audio.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.value = freq;
+    filter.Q.value = q;
+    const gain = audio.createGain();
+    gain.gain.setValueAtTime(0, audio.currentTime);
+    gain.gain.linearRampToValueAtTime(
+      peakVolume,
+      audio.currentTime + AMBIENT_FADE_SEC,
+    );
+    source.connect(filter).connect(gain).connect(audio.destination);
+    source.start();
+    ambientLoopSource = source;
+    ambientLoopGain = gain;
+  };
+
+  /** Fades out and tears down the current ambient loop, if any. */
+  const stopAmbientLoop = () => {
+    if (!audio || !ambientLoopSource || !ambientLoopGain) {
+      ambientLoopSource = null;
+      ambientLoopGain = null;
+      return;
+    }
+    const source = ambientLoopSource;
+    const gain = ambientLoopGain;
+    gain.gain.linearRampToValueAtTime(
+      0.0001,
+      audio.currentTime + AMBIENT_FADE_SEC,
+    );
+    setTimeout(
+      () => {
+        source.stop();
+        source.disconnect();
+        gain.disconnect();
+      },
+      AMBIENT_FADE_SEC * 1000 + 50,
+    );
+    ambientLoopSource = null;
+    ambientLoopGain = null;
+  };
+
+  const clearAmbientTimer = () => {
+    if (ambientTimer !== null) {
+      window.clearTimeout(ambientTimer);
+      ambientTimer = null;
+    }
+  };
+
+  /** old-town: sparse two-note sine bird blip, rescheduled every 4-9s. */
+  const scheduleBirdBlip = () => {
+    ambientTimer = window.setTimeout(
+      () => {
+        tone(1800, 0.07, "sine", { volume: 0.025 });
+        tone(2400, 0.06, "sine", { at: 0.08, volume: 0.02 });
+        scheduleBirdBlip();
+      },
+      BIRD_BLIP_DELAY_MIN_MS + Math.random() * BIRD_BLIP_DELAY_RANGE_MS,
+    );
+  };
+
+  /** castle-road: a banner-flap transient over the wind bed, rescheduled every 3-6s. */
+  const scheduleBannerFlap = () => {
+    ambientTimer = window.setTimeout(
+      () => {
+        filteredNoiseBurst(0.12, 0.03, "bandpass", 700);
+        scheduleBannerFlap();
+      },
+      BANNER_FLAP_DELAY_MIN_MS + Math.random() * BANNER_FLAP_DELAY_RANGE_MS,
+    );
+  };
+
+  /** Starts the layer(s) for `zoneId`; a no-op for any zone id without an ambient layer defined. */
+  const beginZoneAmbient = (zoneId: string) => {
+    if (zoneId === "old-town") {
+      scheduleBirdBlip();
+      return;
+    }
+    if (zoneId === "market-street") {
+      startAmbientLoop("bandpass", 1000, 1.2, 0.018);
+      return;
+    }
+    if (zoneId === "castle-road") {
+      startAmbientLoop("lowpass", 500, 0.7, 0.02);
+      scheduleBannerFlap();
+    }
+  };
+
   return {
     /** Create/resume the context; must be called from a user gesture. */
     unlock() {
@@ -255,11 +403,37 @@ export function createSfx() {
       }
       bgmMasterGain = null;
     },
+    /** AUD-04: starts `zoneId`'s ambient layer; a no-op for a zone id with none defined. */
+    startAmbient(zoneId: string) {
+      if (!audio) {
+        return;
+      }
+      ambientZone = zoneId;
+      beginZoneAmbient(zoneId);
+    },
+    /** AUD-04: swaps the ambient layer for a new zone; a no-op if the zone is unchanged. */
+    setAmbientZone(zoneId: string) {
+      if (!audio || ambientZone === zoneId) {
+        return;
+      }
+      ambientZone = zoneId;
+      stopAmbientLoop();
+      clearAmbientTimer();
+      beginZoneAmbient(zoneId);
+    },
+    /** AUD-04: fades out and tears down the current ambient layer. */
+    stopAmbient() {
+      ambientZone = null;
+      stopAmbientLoop();
+      clearAmbientTimer();
+    },
     dispose() {
       if (bgmTimer !== null) {
         window.clearInterval(bgmTimer);
         bgmTimer = null;
       }
+      clearAmbientTimer();
+      stopAmbientLoop();
       if (audio && audio.state !== "closed") {
         void audio.close();
       }
