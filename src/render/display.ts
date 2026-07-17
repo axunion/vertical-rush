@@ -1,6 +1,6 @@
 import type { DisplayFit, OffscreenSurface } from "./types";
 
-/** Fits the 9:16-style playfield inside the available box, then picks the largest integer scale (RND-02). */
+/** Fits the 9:16-style playfield inside the available box, then picks the largest integer scale. */
 export function computeDisplayFit(
   maxW: number,
   maxH: number,
@@ -28,7 +28,7 @@ export function computeDisplayFit(
   return { cssW, cssH, backingW, backingH, k, dx, dy };
 }
 
-/** Backing-store size = CSS size x DPR; resizing a canvas resets its context state (RND-03). */
+/** Backing-store size = CSS size x DPR; resizing a canvas resets its context state. */
 export function sizeDisplayCanvas(
   canvasEl: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
@@ -41,7 +41,7 @@ export function sizeDisplayCanvas(
   ctx.imageSmoothingEnabled = false;
 }
 
-/** Creates the fixed 180x320 logical-pixel drawing surface (RND-01); never resized. */
+/** Creates the fixed 180x320 logical-pixel drawing surface; never resized. */
 export function createOffscreenCanvas(
   w: number,
   h: number,
@@ -71,7 +71,7 @@ export function paintLetterbox(
   displayCtx.fillRect(0, 0, fit.backingW, fit.backingH);
 }
 
-/** Blits the offscreen buffer onto the display canvas, integer-scaled and centered (RND-02). */
+/** Blits the offscreen buffer onto the display canvas, integer-scaled and centered. */
 export function blitFrame(
   displayCtx: CanvasRenderingContext2D,
   offscreen: HTMLCanvasElement,

@@ -23,9 +23,10 @@ Key techniques that work:
   - `X = 0.4` → safe lane stays center → an idle player **clears** at 240m (~24s).
   - `X = 0.9` → obstacle lands on the player's lane → **crash** within ~5s.
 - **Player lane position**: locate the player by scanning canvas pixels for the
-  rust-red key color `#D95763` (tolerance ±40, `SPEC-RENDER › RND-05`). Since
+  rust-red key color `#D95763` (tolerance ±40; must track
+  `GAME_CONFIG.colors.rustRed` in `src/config.ts`). Since
   P2, the game draws to a fixed 180×320 offscreen buffer that's integer-scaled
-  and letterboxed onto the display canvas (`RND-02`) — the canvas element can
+  and letterboxed onto the display canvas — the canvas element can
   have real top/bottom letterbox bars, so the scan row must be derived from
   the canvas's own backing-store size (`canvas.width`/`canvas.height` already
   **are** the device-pixel size the app sized the canvas to — no need to
@@ -54,7 +55,7 @@ Key techniques that work:
   the image `onerror` fallback still engages; don't assert on request failures.
 - Level thresholds: LV.2 past 50m (~7s), LV.3 past 150m (~17s), clear at 240m (~24s).
 
-## Instant retry lockout (CORE-05)
+## Instant retry lockout
 
 After driving a run to `cleared` or `gameover` (either scenario above), verify
 the 0.4s retry lockout (`GAME_CONFIG.retryLockout`):

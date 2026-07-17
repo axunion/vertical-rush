@@ -4,7 +4,7 @@ import type { RenderColors, ZoneBlend } from "./render";
 export const GAME_CONFIG = {
   targetDistance: TARGET_DISTANCE,
   laneCount: 3,
-  /** Fixed logical-pixel grid (RND-01): sim/drawing coordinates never depend on window size. */
+  /** Fixed logical-pixel grid: sim/drawing coordinates never depend on window size. */
   logical: { w: 180, h: 320, roadPad: 12 },
   /** Fraction of the view height scrolled per second at speed 1. */
   speedRatio: 0.11,
@@ -50,9 +50,9 @@ export const GAME_CONFIG = {
   magnet: { radius: 50, pullSpeed: 220 },
   shake: { duration: 0.45, magnitude: 7 },
   bannerDuration: 0.8,
-  /** SPEC-CORE zone transitions: road/sky crossfade duration on a zone change. */
+  /** Road/sky crossfade duration on a zone change. */
   zoneCrossfadeDuration: 1.2,
-  /** CORE-05: input lockout after entering a terminal phase, absorbing trailing panic taps from the crash. */
+  /** Input lockout after entering a terminal phase, absorbing trailing panic taps from the crash. */
   retryLockout: 0.4,
   font: '"DotGothic16", "Avenir Next", Futura, "Trebuchet MS", sans-serif',
   colors: {
@@ -71,7 +71,7 @@ export const GAME_CONFIG = {
   },
 } as const;
 
-/** SPEC-CORE zone transitions / CORE-03 palette shift: road+sky colors per zone, crossfaded over `zoneCrossfadeDuration` on a zone change. Replaces the single flat road entries in `GAME_CONFIG.colors` for these three keys. */
+/** Road+sky colors per zone, crossfaded over `zoneCrossfadeDuration` on a zone change. Replaces the single flat road entries in `GAME_CONFIG.colors` for these three keys. */
 export const ZONE_PALETTES: Record<
   string,
   Pick<RenderColors, "cobbleMid" | "cobbleLight" | "duskPurple">
@@ -115,5 +115,5 @@ export const ZONE_STEADY_BLEND: Record<string, ZoneBlend> = Object.fromEntries(
 
 export type GamePhase = "ready" | "running" | "cleared" | "gameover";
 
-/** CORE-06: localStorage key for the persisted best score. */
+/** The localStorage key for the persisted best score. */
 export const BEST_SCORE_KEY = "vertical-rush.best";

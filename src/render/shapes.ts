@@ -3,7 +3,7 @@ import type { Box } from "../gameLogic";
 import { roundBox, strokeInset, withAlpha } from "./helpers";
 import type { RenderColors } from "./types";
 
-/** Chunky pixel-shape drawers (RND-07): flat fills, 1px ink outline, no gradients or glow. */
+/** Chunky pixel-shape drawers: flat fills, 1px ink outline, no gradients or glow. */
 export function drawFallback(
   c: CanvasRenderingContext2D,
   shape: FallbackShape,
@@ -288,7 +288,7 @@ function drawHourglassShape(
   c.fill();
 }
 
-/** Horseshoe magnet (P11): duskPurple U-body with gold tip caps (avoids the rust-red key-color tolerance box, RND-05). */
+/** Horseshoe magnet (P11): duskPurple U-body with gold tip caps (avoids the rust-red key-color tolerance box). */
 function drawMagnetShape(
   c: CanvasRenderingContext2D,
   x: number,

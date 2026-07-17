@@ -5,8 +5,7 @@ paths:
 
 # Implementation Invariants
 
-`spec/01-overview.md` (Global invariants, Environment constraints) is authoritative;
-this rule is its enforcement summary for implementation work.
+This rule file is the authoritative home of these invariants.
 
 ## Global invariants — must hold in every commit
 
@@ -26,24 +25,13 @@ this rule is its enforcement summary for implementation work.
 - `OVR-INV-1` No magic numbers at use sites: view/feel values in `GAME_CONFIG`,
   entity data in `entities.ts`, difficulty values in `gameLogic.ts`.
 
-## Spec sync
-
-Any change to gameplay rules, entity data, the rendering pipeline, or difficulty
-values updates the matching spec section — including its `Status:` line — in the
-same commit. Source-of-truth tables (`WLD-02` palette, `CORE-03` ZONE_TABLE,
-`ENT-02` entity registry, `RND-01` pixel grid) must match code values exactly.
-
-## Phase discipline
-
-Do not implement scope marked `planned (Pn)` for a later phase in
-`spec/07-roadmap.md`.
-
 ## E2E harness coupling
 
 - Spawn randomness stays routed through an injectable rng — the verify skill
   stubs `Math.random` for deterministic scenarios.
 - Any palette or player-look change updates the scan color constant in
-  `.claude/skills/verify/SKILL.md` in the same change (`RND-05`).
+  `.claude/skills/verify/SKILL.md` in the same change (player key color
+  `#D95763`, `GAME_CONFIG.colors.rustRed`).
 
 ## Compiler constraints
 

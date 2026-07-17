@@ -112,7 +112,7 @@ describe("checkCollision", () => {
     expect(checkCollision(box(0, 0), box(80, 0))).toBe(false);
   });
 
-  it("accepts a more generous marginRate where the default rejects (CORE-02)", () => {
+  it("accepts a more generous marginRate where the default rejects", () => {
     // Same pair as "raw boxes overlap but shrunk boxes do not" above: with the
     // default 0.2 margin the shrunk boxes span 10..90 and 95..175 (no overlap).
     expect(checkCollision(box(0, 0), box(85, 0))).toBe(false);

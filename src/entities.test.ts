@@ -272,7 +272,7 @@ describe("SPAWN_TABLE", () => {
     }
   });
 
-  it("adds stray-cat/chicken-flock to old-town and market-street only (ENT-02)", () => {
+  it("adds stray-cat/chicken-flock to old-town and market-street only", () => {
     const oldTownIds = new Set(
       SPAWN_TABLE["old-town"].obstacles.map((r) => r.defId),
     );
@@ -292,7 +292,7 @@ describe("SPAWN_TABLE", () => {
     expect(castleIds).not.toContain("chicken-flock");
   });
 
-  it("adds town-guard to market-street and castle-road only, and fountain to market-street only (ENT-02, P10)", () => {
+  it("adds town-guard to market-street and castle-road only, and fountain to market-street only (P10)", () => {
     for (const zoneId of ["market-street", "castle-road"]) {
       expect(SPAWN_TABLE[zoneId].obstacles.map((r) => r.defId)).toContain(
         "town-guard",
@@ -320,7 +320,7 @@ describe("SPAWN_TABLE", () => {
     }
   });
 
-  it("adds rolling-barrel to castle-road only (ENT-02)", () => {
+  it("adds rolling-barrel to castle-road only", () => {
     expect(SPAWN_TABLE["castle-road"].obstacles.map((r) => r.defId)).toContain(
       "rolling-barrel",
     );
@@ -524,7 +524,7 @@ describe("positionObstacleRow", () => {
     }
   });
 
-  it("can pick fountain when the blocked lane is the center lane (P10, ENT-02)", () => {
+  it("can pick fountain when the blocked lane is the center lane (P10)", () => {
     // market-street oneLaneRefs (incl. fountain) total 80; roll 76 lands in
     // fountain's [75,80) share, the last (highest-weight-consumed) slot.
     const rng = () => 0.95;
@@ -540,7 +540,7 @@ describe("positionObstacleRow", () => {
     expect(obs.defId).toBe("fountain");
   });
 
-  it("never picks fountain for a non-center blocked lane, swept across the full rng range (P10, ENT-02)", () => {
+  it("never picks fountain for a non-center blocked lane, swept across the full rng range (P10)", () => {
     const sample = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999999];
     for (const lane of [0, 2]) {
       for (const roll of sample) {
@@ -584,7 +584,7 @@ describe("positionBannerArchRow", () => {
     }
   });
 
-  it("sizes each hitbox to banner-arch's ENT-02 footprint", () => {
+  it("sizes each hitbox to banner-arch's registry footprint", () => {
     const { size } = ENTITY_DEFS["banner-arch"];
     const [obs] = positionBannerArchRow(0, laneCount, laneCenterX);
     expect(obs.width).toBe(size.w);
@@ -593,14 +593,14 @@ describe("positionBannerArchRow", () => {
 });
 
 describe("ENTITY_DEFS", () => {
-  it("matches the ENT-02 source-of-truth footprint for market-crate and hay-cart", () => {
+  it("matches the source-of-truth footprint for market-crate and hay-cart", () => {
     expect(ENTITY_DEFS["market-crate"].size).toEqual({ w: 38, h: 24 });
     expect(ENTITY_DEFS["market-crate"].lanes).toBe(1);
     expect(ENTITY_DEFS["hay-cart"].size).toEqual({ w: 80, h: 32 });
     expect(ENTITY_DEFS["hay-cart"].lanes).toBe(2);
   });
 
-  it("matches the ENT-02 source-of-truth footprint and collect effect for coin", () => {
+  it("matches the source-of-truth footprint and collect effect for coin", () => {
     expect(ENTITY_DEFS.coin.size).toEqual({ w: 12, h: 12 });
     expect(ENTITY_DEFS.coin.lanes).toBe(1);
     expect(ENTITY_DEFS.coin.onCollision).toEqual({
@@ -610,7 +610,7 @@ describe("ENTITY_DEFS", () => {
     });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and collect effect for gem", () => {
+  it("matches the source-of-truth footprint and collect effect for gem", () => {
     expect(ENTITY_DEFS.gem.size).toEqual({ w: 12, h: 12 });
     expect(ENTITY_DEFS.gem.lanes).toBe(1);
     expect(ENTITY_DEFS.gem.onCollision).toEqual({
@@ -620,7 +620,7 @@ describe("ENTITY_DEFS", () => {
     });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and dart behavior for stray-cat", () => {
+  it("matches the source-of-truth footprint and dart behavior for stray-cat", () => {
     expect(ENTITY_DEFS["stray-cat"].size).toEqual({ w: 16, h: 12 });
     expect(ENTITY_DEFS["stray-cat"].lanes).toBe(1);
     expect(ENTITY_DEFS["stray-cat"].behavior).toEqual({
@@ -631,7 +631,7 @@ describe("ENTITY_DEFS", () => {
     expect(ENTITY_DEFS["stray-cat"].onCollision).toEqual({ kind: "crash" });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and walker behavior for chicken-flock", () => {
+  it("matches the source-of-truth footprint and walker behavior for chicken-flock", () => {
     expect(ENTITY_DEFS["chicken-flock"].size).toEqual({ w: 12, h: 12 });
     expect(ENTITY_DEFS["chicken-flock"].lanes).toBe(1);
     expect(ENTITY_DEFS["chicken-flock"].behavior).toEqual({
@@ -643,7 +643,7 @@ describe("ENTITY_DEFS", () => {
     });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and roller behavior for rolling-barrel", () => {
+  it("matches the source-of-truth footprint and roller behavior for rolling-barrel", () => {
     expect(ENTITY_DEFS["rolling-barrel"].size).toEqual({ w: 20, h: 20 });
     expect(ENTITY_DEFS["rolling-barrel"].lanes).toBe(1);
     expect(ENTITY_DEFS["rolling-barrel"].behavior).toEqual({
@@ -655,7 +655,7 @@ describe("ENTITY_DEFS", () => {
     });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and roller behavior for town-guard (P10)", () => {
+  it("matches the source-of-truth footprint and roller behavior for town-guard (P10)", () => {
     expect(ENTITY_DEFS["town-guard"].size).toEqual({ w: 16, h: 24 });
     expect(ENTITY_DEFS["town-guard"].lanes).toBe(1);
     expect(ENTITY_DEFS["town-guard"].behavior).toEqual({
@@ -665,7 +665,7 @@ describe("ENTITY_DEFS", () => {
     expect(ENTITY_DEFS["town-guard"].onCollision).toEqual({ kind: "crash" });
   });
 
-  it("matches the ENT-02 source-of-truth footprint for fountain, restricted to the center lane (P10)", () => {
+  it("matches the source-of-truth footprint for fountain, restricted to the center lane (P10)", () => {
     expect(ENTITY_DEFS.fountain.size).toEqual({ w: 40, h: 40 });
     expect(ENTITY_DEFS.fountain.lanes).toBe(1);
     expect(ENTITY_DEFS.fountain.behavior).toEqual({ kind: "static" });
@@ -673,21 +673,21 @@ describe("ENTITY_DEFS", () => {
     expect(ENTITY_DEFS.fountain.onCollision).toEqual({ kind: "crash" });
   });
 
-  it("matches the ENT-02 source-of-truth footprint for banner-arch (P10)", () => {
+  it("matches the source-of-truth footprint for banner-arch (P10)", () => {
     expect(ENTITY_DEFS["banner-arch"].size).toEqual({ w: 38, h: 24 });
     expect(ENTITY_DEFS["banner-arch"].lanes).toBe(1);
     expect(ENTITY_DEFS["banner-arch"].behavior).toEqual({ kind: "static" });
     expect(ENTITY_DEFS["banner-arch"].onCollision).toEqual({ kind: "crash" });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and shield effect for sweet-roll (P11)", () => {
+  it("matches the source-of-truth footprint and shield effect for sweet-roll (P11)", () => {
     expect(ENTITY_DEFS["sweet-roll"].size).toEqual({ w: 14, h: 14 });
     expect(ENTITY_DEFS["sweet-roll"].lanes).toBe(1);
     expect(ENTITY_DEFS["sweet-roll"].category).toBe("item");
     expect(ENTITY_DEFS["sweet-roll"].onCollision).toEqual({ kind: "shield" });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and slow effect for hourglass (P11)", () => {
+  it("matches the source-of-truth footprint and slow effect for hourglass (P11)", () => {
     expect(ENTITY_DEFS.hourglass.size).toEqual({ w: 12, h: 16 });
     expect(ENTITY_DEFS.hourglass.lanes).toBe(1);
     expect(ENTITY_DEFS.hourglass.category).toBe("item");
@@ -698,7 +698,7 @@ describe("ENTITY_DEFS", () => {
     });
   });
 
-  it("matches the ENT-02 source-of-truth footprint and magnet effect for magnet (P11)", () => {
+  it("matches the source-of-truth footprint and magnet effect for magnet (P11)", () => {
     expect(ENTITY_DEFS.magnet.size).toEqual({ w: 14, h: 12 });
     expect(ENTITY_DEFS.magnet.lanes).toBe(1);
     expect(ENTITY_DEFS.magnet.category).toBe("item");
@@ -892,12 +892,12 @@ describe("advanceItems", () => {
 });
 
 describe("PLAYER_SIZE", () => {
-  it("matches the RND-01 logical player sprite size", () => {
+  it("matches the logical player sprite size", () => {
     expect(PLAYER_SIZE).toEqual({ w: 24, h: 32 });
   });
 });
 
-describe("ENT-06 sprite binding", () => {
+describe("sprite binding", () => {
   it("binds every entity to the entities sheet with frames matching its own size", () => {
     for (const def of Object.values(ENTITY_DEFS)) {
       expect(def.sprite).not.toBeNull();

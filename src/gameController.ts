@@ -110,12 +110,12 @@ export function createGameController(
     bgOffset: 0,
     prevLevel: 1,
     bannerTime: 0,
-    /** CORE-05: seconds remaining before a tap/keypress may restart the run, set on entering cleared/gameover. */
+    /** Seconds remaining before a tap/keypress may restart the run, set on entering cleared/gameover. */
     terminalLockTime: 0,
-    /** SPEC-CORE zone transitions: the zone crossfading FROM, and seconds remaining in that crossfade. */
+    /** Zone transitions: the zone crossfading FROM, and seconds remaining in that crossfade. */
     zoneFadeFrom: ZONE_TABLE[0].id,
     zoneFadeTime: 0,
-    /** AUD-03: whether the BGM is currently ducked for a showing zone banner. */
+    /** Whether the BGM is currently ducked for a showing zone banner. */
     bgmDucked: false,
     dustCarry: 0,
     playerAnimState: "idle" as PlayerAnimState,
@@ -187,7 +187,7 @@ export function createGameController(
     }
   };
 
-  /** CORE-06: updates the persisted best score if this run's final score beats it. */
+  /** Updates the persisted best score if this run's final score beats it. */
   const finishRun = () => {
     const score = calculateScore(
       hooks.getDistance(),
@@ -214,7 +214,7 @@ export function createGameController(
       Math.random,
     );
     sim.safeLane = result.safeLane;
-    // ENT-02 (P10): a scripted castle-road banner-arch reskins the whole
+    // P10: a scripted castle-road banner-arch reskins the whole
     // row (all non-safe lanes) instead of the normal weighted pick.
     const rowObstacles = shouldSpawnBannerArch(zone.id, Math.random)
       ? positionBannerArchRow(sim.safeLane, GAME_CONFIG.laneCount, laneCenterX)
@@ -462,7 +462,7 @@ export function createGameController(
   const updatePlayerAnim = (dt: number, runningLevel: LevelInfo | null) => {
     sim.switchHoldTime = Math.max(0, sim.switchHoldTime - dt);
     const next = desiredPlayerAnimState();
-    // "run" speeds up with the zone (SPEC-WORLD Poco animation table), matching the fallback sin-bob's curve.
+    // "run" speeds up with the zone, matching the fallback sin-bob's curve.
     const animDt =
       next === "run" && runningLevel
         ? dt * animSpeedFactor(runningLevel.level)

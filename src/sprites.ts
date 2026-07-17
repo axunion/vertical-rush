@@ -1,4 +1,4 @@
-/** SPEC-RENDER RND-04 sprite-sheet manifest: explicit frame rects, no grid-index shorthand. */
+/** Sprite-sheet manifest: explicit frame rects, no grid-index shorthand. */
 export interface FrameRect {
   x: number;
   y: number;
@@ -28,7 +28,7 @@ function frameBand(
   return xOffsets.map((x) => ({ x, y, w, h }));
 }
 
-/** Builds a row of same-size frames on the poco.png grid (RND-04 layout: 24x32 cells). */
+/** Builds a row of same-size frames on the poco.png grid (24x32 cells). */
 function pocoRow(row: number, count: number): FrameRect[] {
   return frameBand(
     row * 32,
@@ -38,7 +38,7 @@ function pocoRow(row: number, count: number): FrameRect[] {
   );
 }
 
-/** SPEC-RENDER RND-09 tile-region manifest: region rects, no animation semantics. */
+/** Tile-region manifest: region rects, no animation semantics. */
 export interface TileSheetDef {
   id: string;
   src: string;
@@ -122,7 +122,7 @@ export const SPRITE_SHEETS: Record<string, SpriteSheetDef> = {
   },
 };
 
-/** `town.png` layout (RND-08 town.png table): 192x128, region-based, no animation. */
+/** `town.png` layout: 192x128, region-based, no animation. */
 export const TILE_SHEETS: Record<string, TileSheetDef> = {
   town: {
     id: "town",

@@ -5,7 +5,7 @@
   font-display: swap;
   src: url("./assets/fonts/DotGothic16-subset.woff2") format("woff2");
   /* Subset covers exactly this file's HUD/overlay strings + full Latin/digits;
-     characters outside it fall back to the sans-serif stack below (WLD-03). */
+     characters outside it fall back to the sans-serif stack below. */
   unicode-range:
     U+20-21, U+25, U+2e-39, U+41-5a, U+61-7a, U+2014, U+2026, U+3046, U+304a,
     U+3057-3058, U+305b-305c, U+3066-3067, U+306e, U+3082, U+308b, U+3092,

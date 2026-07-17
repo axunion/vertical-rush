@@ -44,7 +44,7 @@ describe("frameAt", () => {
 });
 
 describe("SPRITE_SHEETS", () => {
-  it("defines the poco sheet with all five animation states on the RND-04 grid", () => {
+  it("defines the poco sheet with all five animation states on the 24x32 grid", () => {
     const poco = SPRITE_SHEETS.poco;
     expect(poco.src).toBe("/assets/sheets/poco.png");
     expect(Object.keys(poco.animations).sort()).toEqual([
@@ -67,7 +67,7 @@ describe("SPRITE_SHEETS", () => {
     }
   });
 
-  it("defines the entities sheet with one band per entity on the RND-08 grid", () => {
+  it("defines the entities sheet with one band per entity on the sheet grid", () => {
     const SHEET_W = 80;
     const SHEET_H = 280;
     const entities = SPRITE_SHEETS.entities;
@@ -116,7 +116,7 @@ describe("SPRITE_SHEETS", () => {
 });
 
 describe("TILE_SHEETS", () => {
-  it("defines the town sheet with all nine RND-08 regions within the 192x128 sheet", () => {
+  it("defines the town sheet with all nine regions within the 192x128 sheet", () => {
     const SHEET_W = 192;
     const SHEET_H = 128;
     const town = TILE_SHEETS.town;

@@ -6,7 +6,7 @@ import { roundBox } from "./helpers";
 import { drawFallback } from "./shapes";
 import type { PlayerAnimState, RenderColors, SheetImages } from "./types";
 
-/** Resolves the sheet + current frame to draw, or null if the sheet/animation isn't available (RND-06 shared mechanism). */
+/** Resolves the sheet + current frame to draw, or null if the sheet/animation isn't available. */
 function resolveSpriteFrame(
   sheetDef: SpriteSheetDef | undefined,
   sheet: HTMLImageElement | null | undefined,
@@ -17,7 +17,7 @@ function resolveSpriteFrame(
   return sheet && anim ? { sheet, frame: frameAt(anim, timeSec) } : null;
 }
 
-/** Draws the current sprite frame if `def.sprite` names a loaded sheet + animation, else the fallback shape (RND-06). */
+/** Draws the current sprite frame if `def.sprite` names a loaded sheet + animation, else the fallback shape. */
 export function drawEntity(
   c: CanvasRenderingContext2D,
   instance: EntityInstance,

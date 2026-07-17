@@ -7,7 +7,7 @@ export type SfxId =
   | "shieldGet"
   | "shieldBreak";
 
-/** AUD-03: BGM tempo per zone id (ZONE_TABLE keys); key stays C major throughout. */
+/** BGM tempo per zone id (ZONE_TABLE keys); key stays C major throughout. */
 const BGM_TEMPO: Record<string, number> = {
   "old-town": 112,
   "market-street": 126,
@@ -20,7 +20,7 @@ const BGM_SCHEDULE_AHEAD_SEC = 0.1;
 const BGM_STEPS_PER_BAR = 4;
 const C4 = 261.63;
 
-/** AUD-04: per-zone ambient layer, all procedural. Fade time on zone switch/stop. */
+/** Per-zone ambient layer, all procedural. Fade time on zone switch/stop. */
 const AMBIENT_FADE_SEC = 0.5;
 const AMBIENT_LOOP_BUFFER_SEC = 2;
 /** Bird blips fire every 4-9s (spec); banner flaps every 3-6s (unspecified by spec, tuned by ear). */
@@ -109,7 +109,7 @@ export function createSfx() {
     osc.stop(t0 + duration);
   };
 
-  /** ~0.2s of white noise, gated by an exponential-decay envelope — the crash pratfall (AUD-02 gameOver). */
+  /** ~0.2s of white noise, gated by an exponential-decay envelope — the crash pratfall (gameOver). */
   const noiseBurst = (duration: number, volume: number) => {
     if (!audio) {
       return;
@@ -341,28 +341,28 @@ export function createSfx() {
       tone(659.25, 0.5, "triangle", { at: 0.12 });
       tone(783.99, 0.5, "triangle", { at: 0.24 });
       tone(1046.5, 0.8, "triangle", { at: 0.36, volume: 0.09 });
-      tone(523.25, 1.2, "sine", { at: 0.36, volume: 0.05 }); // low bell (AUD-02)
+      tone(523.25, 1.2, "sine", { at: 0.36, volume: 0.05 }); // low bell
     },
     gameOver() {
       tone(320, 0.7, "sawtooth", { to: 55, volume: 0.09 });
-      noiseBurst(0.2, 0.08); // pratfall noise burst (AUD-02)
+      noiseBurst(0.2, 0.08); // pratfall noise burst
     },
     coin() {
       tone(1318.51, 0.05, "square", { volume: 0.05 });
       tone(1975.53, 0.05, "square", { at: 0.04, volume: 0.05 });
     },
-    /** AUD-02 (P11): warm major chord for picking up a shield (sweet-roll). */
+    /** P11: warm major chord for picking up a shield (sweet-roll). */
     shieldGet() {
       tone(523.25, 0.2, "triangle", { volume: 0.06 });
       tone(659.25, 0.2, "triangle", { volume: 0.06 });
       tone(783.99, 0.24, "triangle", { volume: 0.06 });
     },
-    /** AUD-02 (P11): glass-pop for a shield absorbing a hit. */
+    /** P11: glass-pop for a shield absorbing a hit. */
     shieldBreak() {
       tone(900, 0.1, "sine", { to: 300, volume: 0.06 });
       noiseBurst(0.05, 0.05);
     },
-    /** AUD-03: starts the procedural chip loop at `zoneId`'s tempo; a no-op if already playing. */
+    /** Starts the procedural chip loop at `zoneId`'s tempo; a no-op if already playing. */
     startBgm(zoneId: string) {
       if (!audio || bgmTimer !== null) {
         return;
@@ -375,11 +375,11 @@ export function createSfx() {
       bgmNextStepTime = audio.currentTime + 0.05;
       bgmTimer = window.setInterval(scheduleBgm, BGM_LOOKAHEAD_MS);
     },
-    /** AUD-03: retempos the loop for a new zone; the melody/bar position keeps playing through. */
+    /** Retempos the loop for a new zone; the melody/bar position keeps playing through. */
     setBgmZone(zoneId: string) {
       bgmBpm = BGM_TEMPO[zoneId] ?? bgmBpm;
     },
-    /** AUD-03: ducks the BGM master gain 50% while a zone banner is showing. */
+    /** Ducks the BGM master gain 50% while a zone banner is showing. */
     setBgmDucked(ducked: boolean) {
       if (!audio || !bgmMasterGain) {
         return;
@@ -390,7 +390,7 @@ export function createSfx() {
         audio.currentTime + 0.1,
       );
     },
-    /** AUD-03: stops the loop with a short release (not a hard cut) on cleared/gameover. */
+    /** Stops the loop with a short release (not a hard cut) on cleared/gameover. */
     stopBgm() {
       if (bgmTimer !== null) {
         window.clearInterval(bgmTimer);
@@ -403,7 +403,7 @@ export function createSfx() {
       }
       bgmMasterGain = null;
     },
-    /** AUD-04: starts `zoneId`'s ambient layer; a no-op for a zone id with none defined. */
+    /** Starts `zoneId`'s ambient layer; a no-op for a zone id with none defined. */
     startAmbient(zoneId: string) {
       if (!audio) {
         return;
@@ -411,7 +411,7 @@ export function createSfx() {
       ambientZone = zoneId;
       beginZoneAmbient(zoneId);
     },
-    /** AUD-04: swaps the ambient layer for a new zone; a no-op if the zone is unchanged. */
+    /** Swaps the ambient layer for a new zone; a no-op if the zone is unchanged. */
     setAmbientZone(zoneId: string) {
       if (!audio || ambientZone === zoneId) {
         return;
@@ -421,7 +421,7 @@ export function createSfx() {
       clearAmbientTimer();
       beginZoneAmbient(zoneId);
     },
-    /** AUD-04: fades out and tears down the current ambient layer. */
+    /** Fades out and tears down the current ambient layer. */
     stopAmbient() {
       ambientZone = null;
       stopAmbientLoop();

@@ -37,7 +37,7 @@ export function withAlpha(hex: string, alpha: number): string {
   });
 }
 
-/** Linearly interpolates two `#RRGGBB` colors at `t` in [0,1] — the zone-transition palette crossfade (`SPEC-CORE › zone transitions`). */
+/** Linearly interpolates two `#RRGGBB` colors at `t` in [0,1] — the zone-transition palette crossfade. */
 export function lerpHexColor(a: string, b: string, t: number): string {
   const pa = hexToRgb(a);
   const pb = hexToRgb(b);
@@ -48,7 +48,7 @@ export function lerpHexColor(a: string, b: string, t: number): string {
   return `#${channel(pa.r, pb.r)}${channel(pa.g, pb.g)}${channel(pa.b, pb.b)}`;
 }
 
-/** The 1px ink outline shared by every chunky pixel shape (RND-07). */
+/** The 1px ink outline shared by every chunky pixel shape. */
 export function strokeInset(
   c: CanvasRenderingContext2D,
   x: number,
@@ -82,7 +82,7 @@ export function wrapOffset(value: number, period: number): number {
   return ((value % period) + period) % period;
 }
 
-/** "market-street" -> "MARKET STREET" (SPEC-CORE zone transitions banner retitle). */
+/** "market-street" -> "MARKET STREET" (zone banner retitle). */
 export function zoneDisplayName(zoneId: string): string {
   return zoneId.replace(/-/g, " ").toUpperCase();
 }

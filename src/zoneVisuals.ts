@@ -11,7 +11,7 @@ import { zoneRangeAt } from "./gameLogic";
 import { lerpHexColor } from "./render/helpers";
 import type { RenderColors, ZoneBlend } from "./render/types";
 
-/** SPEC-CORE zone transitions / SPEC-RENDER RND-09: the single source of the zone-crossfade state, shared by the palette crossfade (`frameColors`) and the `town.png` tile crossfade. Only builds a fresh object during the ~2s crossfade window; steady state returns the precomputed `ZONE_STEADY_BLEND` entry. */
+/** The single source of the zone-crossfade state, shared by the palette crossfade (`frameColors`) and the `town.png` tile crossfade. Only builds a fresh object during the ~2s crossfade window; steady state returns the precomputed `ZONE_STEADY_BLEND` entry. */
 export function frameZoneBlend(
   distance: number,
   zoneFadeTime: number,

@@ -126,7 +126,7 @@ export default function App() {
     sfx.startAmbient(ZONE_TABLE[0].id);
   };
 
-  /** CORE-05: restarts unless still within the post-terminal-phase lockout window; always a no-op while running. */
+  /** Restarts unless still within the post-terminal-phase lockout window; always a no-op while running. */
   const retry = () => {
     if (sim.terminalLockTime > 0) {
       return;
@@ -257,7 +257,7 @@ export default function App() {
     sfx.dispose();
   });
 
-  /** Shared coins/score/best line for the cleared/gameover result overlays (CORE-04, CORE-06). */
+  /** Shared coins/score/best line for the cleared/gameover result overlays. */
   const scoreLine = () => (
     <>
       コイン {coins()}枚 / スコア {calculateScore(distance(), collectedScore())}

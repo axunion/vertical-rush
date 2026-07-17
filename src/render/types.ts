@@ -1,7 +1,7 @@
 import type { EntityDef, EntityInstance } from "../entities";
 import type { Box } from "../gameLogic";
 
-/** Fixed logical-pixel geometry (RND-01) — computed once, never touched by resize. */
+/** Fixed logical-pixel geometry — computed once, never touched by resize. */
 export interface View {
   w: number;
   h: number;
@@ -26,7 +26,7 @@ export interface SpeedLine {
   length: number;
 }
 
-/** The 12-color Karamell palette (WLD-02 source of truth). */
+/** The 12-color Karamell palette (source of truth for game colors). */
 export interface RenderColors {
   ink: string;
   duskPurple: string;
@@ -42,7 +42,7 @@ export interface RenderColors {
   duskTeal: string;
 }
 
-/** SPEC-CORE zone transitions / RND-09 tile crossfade: the zone-transition blend state, shared by the palette crossfade (`RenderColors`) and the `town.png` tile crossfade. */
+/** The zone-transition blend state, shared by the palette crossfade (`RenderColors`) and the `town.png` tile crossfade. */
 export interface ZoneBlend {
   fromZoneId: string;
   toZoneId: string;
@@ -113,7 +113,7 @@ export interface FrameConfig {
   bannerDuration: number;
   font: string;
   colors: RenderColors;
-  /** Drives the `town.png` road/curb crossfade (RND-09); mirrors the palette crossfade already captured in `colors`. */
+  /** Drives the `town.png` road/curb crossfade; mirrors the palette crossfade already captured in `colors`. */
   zoneBlend: ZoneBlend;
 }
 

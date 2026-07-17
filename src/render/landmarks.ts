@@ -39,7 +39,7 @@ function getGoalCheckerPattern(
 
 const CASTLE_GATE_TOWER_H = 28;
 
-/** WLD-05: the goal line as a road-spanning castle gate — flanking stone towers with a torch-flame accent, a drawbridge-deck checkered threshold. Draws the `town.png` `castle-gate` region when loaded (RND-08/09); the drawbridge threshold line sits 32px below the region top, matching `y` below. */
+/** The goal line as a road-spanning castle gate — flanking stone towers with a torch-flame accent, a drawbridge-deck checkered threshold. Draws the `town.png` `castle-gate` region when loaded; the drawbridge threshold line sits 32px below the region top, matching `y` below. */
 export function drawCastleGate(
   c: CanvasRenderingContext2D,
   view: View,
@@ -73,7 +73,7 @@ export function drawCastleGate(
     c.fillStyle = colors.duskPurple;
     c.fillRect(towerX, towerY, towerW, CASTLE_GATE_TOWER_H);
     strokeInset(c, towerX, towerY, towerW, CASTLE_GATE_TOWER_H, colors.ink);
-    // Torch flame: a flat gold square with a warm-white ember core (no blur, RND-07 style).
+    // Torch flame: a flat gold square with a warm-white ember core (no blur).
     c.fillStyle = colors.gold;
     c.fillRect(towerX + towerW * 0.35, towerY + 4, 4, 4);
     c.fillStyle = colors.warmWhite;
@@ -92,7 +92,7 @@ export function drawCastleGate(
 }
 
 /**
- * SPEC-CORE zone transitions: one landmark prop scrolls past at each zone
+ * One landmark prop scrolls past at each zone
  * boundary, keyed to the same `ZONE_TABLE` distances the crossfade/banner
  * trigger on — `town-gate-arch` at old-town's exit, `market-banner` at
  * market-street's exit.
@@ -162,7 +162,7 @@ function drawMarketBanner(
   }
 }
 
-/** Dispatches to the landmark's drawer if its scroll position is currently onscreen; draws the matching `town.png` region (keyed identically to `kind`) when loaded (RND-08/09). */
+/** Dispatches to the landmark's drawer if its scroll position is currently onscreen; draws the matching `town.png` region (keyed identically to `kind`) when loaded. */
 export function drawZoneLandmark(
   c: CanvasRenderingContext2D,
   view: View,

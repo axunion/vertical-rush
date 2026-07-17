@@ -52,7 +52,7 @@ const tilePatternCache = new Map<string, CanvasPattern | null>();
 // Reused across the road/curb tile draws each frame, same idiom as roadPatternTransform.
 const tilePatternTransform = new DOMMatrix();
 
-/** Crops a `town.png` region into a repeatable CanvasPattern, cached by `regionKey` (RND-09) — the only tile sheet is `town`, so its id isn't threaded through as a param. */
+/** Crops a `town.png` region into a repeatable CanvasPattern, cached by `regionKey` — the only tile sheet is `town`, so its id isn't threaded through as a param. */
 function getTilePattern(
   c: CanvasRenderingContext2D,
   sheet: HTMLImageElement,
@@ -112,7 +112,7 @@ function fillTileRegion(
 }
 
 /**
- * Fills `x, 0, w, view.h` with `regionPrefix`'s zone tile(s) (RND-09): the
+ * Fills `x, 0, w, view.h` with `regionPrefix`'s zone tile(s): the
  * previous zone's tile opaque first, then the current zone's tile on top at
  * `alpha = zoneBlend.t`, so mid-crossfade frames blend the two — steady state
  * (`t >= 1`) skips the first pass and paints only the current zone. Shared by
@@ -154,7 +154,7 @@ function paintZoneBlendedRegion(
   return fromOk && toOk;
 }
 
-/** Flat road fill plus a scrolling 16px mortar grid (WLD-03 tile grid; no gradients), or the `town.png` per-zone road tile when loaded (RND-09). */
+/** Flat road fill plus a scrolling 16px mortar grid (no gradients), or the `town.png` per-zone road tile when loaded. */
 export function drawRoad(
   c: CanvasRenderingContext2D,
   view: View,

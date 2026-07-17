@@ -36,18 +36,23 @@ Managed by lefthook:
 
 ```
 src/
-├── gameLogic.ts       # Pure game logic functions (no UI dependencies)
-├── gameLogic.test.ts  # Logic tests (TDD)
-├── App.tsx            # Canvas rendering, game loop, UI (tunables in GAME_CONFIG)
-└── App.module.css     # Overlay UI styles
+├── gameLogic.ts       # Pure game rules & difficulty tables (node-tested)
+├── entities.ts        # Entity registry & spawn/advance helpers (node-tested)
+├── sprites.ts         # Sprite/tile sheet manifests & frame picker (node-tested)
+├── render/            # Canvas pipeline (fixed 180×320 offscreen → display)
+├── audio.ts           # Procedural SFX / BGM / ambient (Web Audio)
+├── config.ts          # GAME_CONFIG tunables, palettes, game phases
+├── zoneVisuals.ts     # Pure zone crossfade helpers
+├── gameController.ts  # Per-frame simulation (Solid-free, injected hooks)
+└── App.tsx            # Game loop, input, HUD/overlay JSX
 ```
 
 Logic and UI are loosely coupled. To change game rules (e.g. collision), write a
-failing test in `gameLogic.test.ts` first; for rendering or feel adjustments,
-start from `GAME_CONFIG` in `App.tsx`.
+failing test in `gameLogic.test.ts` or `entities.test.ts` first; for rendering
+or feel adjustments, start from `GAME_CONFIG` in `src/config.ts`.
 
-Design specifications (world, entity system, rendering pipeline, roadmap) live
-in [`spec/`](spec/README.md) — the source of truth for planned work.
+Long-lived workflow guides (AI image asset workflow, backlog) live in
+[`docs/`](docs/).
 
-Image assets (`public/assets/player.png`, `obstacle.png`) are optional. When
-missing, the game falls back to shape-based Canvas rendering.
+Image assets (`public/assets/sheets/*.png`) are optional. When missing, the
+game falls back to procedural Canvas rendering.

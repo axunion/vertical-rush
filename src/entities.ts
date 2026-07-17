@@ -1,7 +1,7 @@
 import type { SfxId } from "./audio";
 import { type Box, checkCollision, PICKUP_MARGIN_RATE } from "./gameLogic";
 
-/** Logical-px size of Poco (RND-01), including the cake box. Not a registry entry: the player has no category. */
+/** Logical-px size of Poco, including the cake box. Not a registry entry: the player has no category. */
 export const PLAYER_SIZE = { w: 24, h: 32 };
 
 export type EntityCategory = "obstacle" | "item";
@@ -44,7 +44,7 @@ export interface EntityDef {
   sprite: { sheet: string; animation: string } | null;
   fallback: FallbackShape;
   onCollision: CollisionEffect;
-  /** ENT-02 (P10): when set, this static obstacle is only eligible for the weighted pick filling that lane (fountain: center only). */
+  /** P10: when set, this static obstacle is only eligible for the weighted pick filling that lane (fountain: center only). */
   laneRestriction?: "center";
 }
 
@@ -65,7 +65,7 @@ export interface EntityInstance extends Box {
   moveDelay?: number;
 }
 
-/** ENT-06: every ENTITY_DEFS row binds to the `entities` sheet under its own id as the animation name. */
+/** Every ENTITY_DEFS row binds to the `entities` sheet under its own id as the animation name. */
 function entitySprite(id: string): { sheet: string; animation: string } {
   return { sheet: "entities", animation: id };
 }
@@ -204,14 +204,14 @@ export const ENTITY_DEFS: Record<string, EntityDef> = {
   },
 };
 
-/** ENT-03: coin trail geometry, in meters measured behind the row's leading edge. Flat across zones. */
+/** Coin trail geometry, in meters measured behind the row's leading edge. Flat across zones. */
 export const COIN_TRAIL = {
   count: 3,
   leadGapM: 2,
   spacingM: 1,
 } as const;
 
-/** ENT-02: chicken-flock geometry, in meters measured behind the row's leading edge (mirrors COIN_TRAIL's stagger idiom). */
+/** Chicken-flock geometry, in meters measured behind the row's leading edge (mirrors COIN_TRAIL's stagger idiom). */
 export const CHICKEN_FLOCK = {
   count: 3,
   spacingM: 0.6,
@@ -223,11 +223,11 @@ export interface WeightedRef {
 }
 
 export interface ZoneSpawn {
-  /** Fills blocked lanes; weights from ENT-02. */
+  /** Fills blocked lanes via weighted pick. */
   obstacles: WeightedRef[];
   /** Probability a row also gets a coin trail. */
   itemChance: number;
-  /** Probability a row (that isn't already getting the zone's guaranteed gem) also gets a rare effect item (ENT-02: sweet-roll/hourglass/magnet). */
+  /** Probability a row (that isn't already getting the zone's guaranteed gem) also gets a rare effect item (sweet-roll/hourglass/magnet). */
   rareItemChance: number;
   /** Weighted pick among this zone's rare effect items (P11). */
   items: WeightedRef[];
@@ -239,7 +239,7 @@ const BASE_OBSTACLES: WeightedRef[] = [
 ];
 
 /**
- * old-town/market-street add the two street-life movers (ENT-02). `pickWeighted`
+ * old-town/market-street add the two street-life movers. `pickWeighted`
  * assigns each ref a contiguous sub-range of `[0, total)` in array order, so a
  * ref placed at either end of the array owns whichever sub-range touches 0 or
  * `total` — `market-crate`'s 40-weight share is split into two 20-weight refs
@@ -254,31 +254,31 @@ const STREET_OBSTACLES: WeightedRef[] = [
   { defId: "hay-cart", weight: 20 },
 ];
 
-/** market-street adds town-guard (relative-speed teaching moment) and the center-lane-only fountain (ENT-02, P10). */
+/** market-street adds town-guard (relative-speed teaching moment) and the center-lane-only fountain (P10). */
 const MARKET_STREET_OBSTACLES: WeightedRef[] = [
   ...STREET_OBSTACLES,
   { defId: "town-guard", weight: 8 },
   { defId: "fountain", weight: 5 },
 ];
 
-/** castle-road swaps street movers for rolling-barrel and adds town-guard (ENT-02, P10). */
+/** castle-road swaps street movers for rolling-barrel and adds town-guard (P10). */
 const CASTLE_ROAD_OBSTACLES: WeightedRef[] = [
   ...BASE_OBSTACLES,
   { defId: "rolling-barrel", weight: 10 },
   { defId: "town-guard", weight: 8 },
 ];
 
-/** ENT-02 (P11): the three rare effect items, equally weighted, offered in every zone. */
+/** P11: the three rare effect items, equally weighted, offered in every zone. */
 const RARE_ITEMS: WeightedRef[] = [
   { defId: "sweet-roll", weight: 1 },
   { defId: "hourglass", weight: 1 },
   { defId: "magnet", weight: 1 },
 ];
 
-/** ENT-02 (P11): flat per-row chance of a rare effect item, same across zones (mirrors itemChance's flat-across-zones idiom). */
+/** P11: flat per-row chance of a rare effect item, same across zones (mirrors itemChance's flat-across-zones idiom). */
 const RARE_ITEM_CHANCE = 0.08;
 
-/** ENT-05/CORE-03 — per-zone obstacle/item weights, keyed by ZONE_TABLE zone id. */
+/** Per-zone obstacle/item weights, keyed by ZONE_TABLE zone id. */
 export const SPAWN_TABLE: Record<string, ZoneSpawn> = {
   "old-town": {
     obstacles: STREET_OBSTACLES,
@@ -300,7 +300,7 @@ export const SPAWN_TABLE: Record<string, ZoneSpawn> = {
   },
 };
 
-/** ENT-02 (P10): how often a castle-road row is scripted as a banner-arch instead of a normal weighted pick. */
+/** P10: how often a castle-road row is scripted as a banner-arch instead of a normal weighted pick. */
 const BANNER_ARCH_CHANCE = 0.12;
 
 /** Weighted random pick among `refs`, using the injected rng (deterministic under Math.random stubbing). */
@@ -358,7 +358,7 @@ export function spawnRow(
 
 /**
  * Builds positioned obstacle instances for a row's blocked lanes, weighted-
- * picking from the zone's `SPAWN_TABLE` obstacles (ENT-05): two adjacent
+ * picking from the zone's `SPAWN_TABLE` obstacles: two adjacent
  * blocked lanes get one 2-lane obstacle centered between them; otherwise
  * each blocked lane independently gets its own 1-lane obstacle.
  */
@@ -486,7 +486,7 @@ export function positionObstacleRow(
   }
   const centerLane = Math.floor(laneCount / 2);
   return blockedLanes.flatMap((lane) => {
-    // ENT-02 (P10): fountain's laneRestriction keeps it out of the pool
+    // P10: fountain's laneRestriction keeps it out of the pool
     // unless this is the center lane's pick.
     const eligibleRefs = oneLaneRefs.filter((r) => {
       const restriction = ENTITY_DEFS[r.defId].laneRestriction;
@@ -526,7 +526,7 @@ export function positionObstacleRow(
 }
 
 /**
- * ENT-02 (P10): whether a castle-road row is scripted as a banner-arch
+ * P10: whether a castle-road row is scripted as a banner-arch
  * instead of a normal weighted pick, using the injected rng.
  */
 export function shouldSpawnBannerArch(
@@ -538,7 +538,7 @@ export function shouldSpawnBannerArch(
 
 /**
  * Builds one banner-arch hitbox per non-safe lane — a themed skin of the
- * safe-lane row, not a weighted pick (ENT-02), so `ENT-INV-1` holds by
+ * safe-lane row, not a weighted pick, so `ENT-INV-1` holds by
  * construction the same way `spawnRow`'s blockAll case already does.
  */
 export function positionBannerArchRow(
@@ -573,7 +573,7 @@ function stepMover(obs: EntityInstance, dt: number): void {
 }
 
 /**
- * Scrolls obstacles by `scroll` (rollers use `speedFactor`x that, ENT-02),
+ * Scrolls obstacles by `scroll` (rollers use `speedFactor`x that),
  * steps any mover's lateral position, drops ones that left the view, and
  * reports whether any remaining obstacle now overlaps the player (via the
  * shared `checkCollision`, per CORE-INV-1 — no second hit-detection path).
@@ -614,7 +614,7 @@ export function advanceObstacles(
 }
 
 /**
- * ENT-03: whether a spawned row also gets a coin trail, given the zone's
+ * Whether a spawned row also gets a coin trail, given the zone's
  * `itemChance` (SPAWN_TABLE) and the injected rng — mirrors `spawnRow`'s
  * `doubleChance` roll so the e2e harness's `Math.random` stubbing keeps
  * producing deterministic runs.
@@ -624,7 +624,7 @@ export function rollsCoinTrail(itemChance: number, rng: () => number): boolean {
 }
 
 /**
- * ENT-02 (P11): whether a row also gets a rare effect item (sweet-roll/
+ * P11: whether a row also gets a rare effect item (sweet-roll/
  * hourglass/magnet), given the zone's `rareItemChance` and the injected rng —
  * mirrors `rollsCoinTrail`'s roll shape.
  */
@@ -649,7 +649,7 @@ export function positionRareItem(
 }
 
 /**
- * Builds a single gem instance in `lane` at the row's leading edge (ENT-02).
+ * Builds a single gem instance in `lane` at the row's leading edge.
  */
 export function positionGem(
   lane: number,
@@ -659,7 +659,7 @@ export function positionGem(
 }
 
 /**
- * ENT-02: exactly one gem per zone, guaranteed once `distance` passes the
+ * Exactly one gem per zone, guaranteed once `distance` passes the
  * zone's midpoint, as long as that zone hasn't already been gemmed.
  */
 export function shouldSpawnGem(
@@ -674,7 +674,7 @@ export function shouldSpawnGem(
 /**
  * Builds a trail of `COIN_TRAIL.count` coins in the row's safe lane, spaced
  * `COIN_TRAIL.spacingM` meters apart starting `COIN_TRAIL.leadGapM` meters
- * behind the row's leading edge (ENT-03). Always the safe lane, so pickup
+ * behind the row's leading edge. Always the safe lane, so pickup
  * stays optional by construction (ENT-INV-3).
  */
 export function positionCoinTrail(
@@ -729,7 +729,7 @@ function pullTowardPlayer(
 /**
  * Scrolls item instances by `scroll`, pulls coins toward the player while
  * `magnet` is active (P11), drops ones that left the view, and removes any
- * overlapping the player under the generous pickup margin (ENT-04, via the
+ * overlapping the player under the generous pickup margin (via the
  * shared `checkCollision` — CORE-INV-1). Reports each collected item's full
  * `onCollision` effect so the shell can resolve it (score, shield, slow,
  * magnet); the run never stops for an item (ENT-INV-3).

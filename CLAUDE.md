@@ -143,15 +143,14 @@ staged files with auto-fix; pre-push runs `pnpm check` + `pnpm test`.
   `gameController.ts`, `view` in `App.tsx`); Solid signals are only for
   low-frequency UI state (phase, level, displayed distance).
 
-## Specifications
+## Verification
 
-`spec/` is the design source of truth (start at `spec/README.md`). Any change
-to gameplay rules, entity data, the rendering pipeline, or difficulty values
-must update the matching spec section — including its `Status:` line — in the
-same commit. When spec and code disagree and the spec section says
-`implemented`, the code wins: fix the spec first. New feature work follows the
-phases in `spec/07-roadmap.md`; do not implement work marked `planned` for a
-later phase.
+After changing game logic, entity data, rendering, or difficulty values, run
+the triplet: `pnpm test`, `pnpm check`, and the `verify` skill (both
+deterministic scenarios). Global invariants live in
+`.claude/rules/implementation-invariants.md`; long-lived workflow guides
+(asset creation, backlog) live in `docs/`. The code and git history are the
+design documentation — there is no separate spec to keep in sync.
 
 ## Gotchas
 

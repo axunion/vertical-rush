@@ -20,10 +20,10 @@ export const TARGET_DISTANCE = 240;
  */
 export const COLLISION_MARGIN_RATE = 0.2;
 
-/** Item pickup margin rate (ENT-04): more generous than COLLISION_MARGIN_RATE. */
+/** Item pickup margin rate: more generous than COLLISION_MARGIN_RATE. */
 export const PICKUP_MARGIN_RATE = 0.1;
 
-/** Distance (m) before the first row spawns (CORE-03). */
+/** Distance (m) before the first row spawns. */
 export const SPAWN_GAP = {
   initialDelay: 6,
 } as const;
@@ -36,7 +36,7 @@ export interface ZoneDef {
   spawnGap: { from: number; to: number };
 }
 
-/** CORE-03 — source of truth for zone values. */
+/** Source of truth for zone values. */
 export const ZONE_TABLE: readonly ZoneDef[] = [
   {
     id: "old-town",
@@ -69,7 +69,7 @@ export interface ZoneRange {
   end: number;
 }
 
-/** Resolves the zone active at `distance`, plus its ramp bounds (CORE-03). */
+/** Resolves the zone active at `distance`, plus its ramp bounds. */
 export function zoneRangeAt(distance: number): ZoneRange {
   const d = Math.max(0, distance);
   const index = ZONE_TABLE.findIndex((z) => d <= z.upTo);
@@ -84,7 +84,7 @@ export function calculateLevel(distance: number): LevelInfo {
   return { level: zone.level, speed: zone.speed };
 }
 
-/** Meters until the next row spawns: linear ramp across the active zone's spawnGap (CORE-03). */
+/** Meters until the next row spawns: linear ramp across the active zone's spawnGap. */
 export function spawnGapForZone(distance: number): number {
   const { zone, start, end } = zoneRangeAt(distance);
   const span = end - start;
@@ -96,7 +96,7 @@ export function isGameCleared(distance: number, target: number): boolean {
   return distance >= target;
 }
 
-/** Distance's floor plus any collected item scores (CORE-04); score is display-only, never a clear condition. */
+/** Distance's floor plus any collected item scores; score is display-only, never a clear condition. */
 export function calculateScore(
   distance: number,
   collectedScore: number,
@@ -116,7 +116,7 @@ function shrink(box: Box, marginRate: number): Box {
 /**
  * AABB overlap after shrinking both boxes inward by `marginRate` of their
  * width/height. Defaults to the obstacle margin; item pickup passes the
- * more generous `PICKUP_MARGIN_RATE` (ENT-04) through this same path
+ * more generous `PICKUP_MARGIN_RATE` through this same path
  * (CORE-INV-1 — no second collision path).
  */
 export function checkCollision(
